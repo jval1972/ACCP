@@ -23,13 +23,15 @@
 #include 'misc.h'
 #include 'error.h'
 
-// MACROS ------------------------------------------------------------------
+const
+  MSG_NORMAL = 0;
+  MSG_VERBOSE = 1;
+  MSG_DEBUG = 2;
 
-#define ASCII_SLASH 47
-#define ASCII_BACKSLASH 92
-#ifndef O_BINARY
-#define O_BINARY 0
-{$ENDIF}
+const
+  ASCII_SLASH = 47;
+  ASCII_BACKSLASH = 92;
+  O_BINARY = 0;
 
 // TYPES -------------------------------------------------------------------
 
@@ -300,7 +302,7 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-procedure MS_Message(msg_t type, char *text, ...);
+procedure MS_Message(typ: integer; char *text, ...);
 begin
    fp: file;
   va_list argPtr;
