@@ -1,0 +1,31 @@
+unit common;
+
+interface
+
+const
+  MAX_IDENTIFIER_LENGTH = 32;
+  MAX_QUOTED_LENGTH = 256;
+  MAX_FILE_NAME_LENGTH = 512;
+  MAX_SCRIPT_COUNT = 64;
+  MAX_MAP_VARIABLES = 32;
+  MAX_SCRIPT_VARIABLES = 10;
+  MAX_WORLD_VARIABLES = 64;
+  MAX_STRINGS = 128;
+  DEFAULT_OBJECT_SIZE = 65536;
+  ASCII_SPACE = 32;
+  ASCII_QUOTE = 34;
+  ASCII_UNDERSCORE = 95;
+  EOF_CHARACTER = 127;
+  DIRECTORY_DELIMITER = '\';
+
+type
+  S_BYTE = ShortInt;
+  U_BYTE = Byte;
+  S_WORD = SmallInt;
+  U_WORD = Word;
+  S_LONG = Integer;
+  U_LONG = LongWord;
+
+implementation
+
+end.
