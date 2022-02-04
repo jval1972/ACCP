@@ -117,9 +117,9 @@ static void ConstExprFactor;
 static void SendExprCommand(pcd_t pcd);
 static void PushExStk(int value);
 static int PopExStk;
-static pcd_t TokenToPCD(tokenType_t token);
+static pcd_t TokenToPCD(token: integer);
 static pcd_t GetPushVarPCD(symbolType_t symType);
-static pcd_t GetIncDecPCD(tokenType_t token, symbolType_t symbol);
+static pcd_t GetIncDecPCD(token: integer, symbolType_t symbol);
 static int EvalConstExpression;
 static symbolNode_t *DemandSymbol(char *name);
 
@@ -1364,12 +1364,12 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static pcd_t GetAssignPCD(tokenType_t token, symbolType_t symbol)
+static pcd_t GetAssignPCD(token: integer, symbolType_t symbol)
 begin
   i: integer;
   static struct
   begin
-    tokenType_t token;
+    token: integer;
     symbolType_t symbol;
     pcd_t pcd;
    end;  assignmentLookup[] := 
@@ -1541,7 +1541,7 @@ begin
 // Operators: = <> 
 static void ExprLevF;
 begin
-  tokenType_t token;
+  token: integer;
 
   ExprLevG;
   while (TK_Member(LevFOps)) do
@@ -1556,7 +1556,7 @@ begin
 // Operators: < <= > >= 
 static void ExprLevG;
 begin
-  tokenType_t token;
+  token: integer;
 
   ExprLevH;
   while (TK_Member(LevGOps)) do
@@ -1571,7 +1571,7 @@ begin
 // Operators:  shl   shr 
 static void ExprLevH;
 begin
-  tokenType_t token;
+  token: integer;
 
   ExprLevI;
   while (TK_Member(LevHOps)) do
@@ -1586,7 +1586,7 @@ begin
 // Operators: + -
 static void ExprLevI;
 begin
-  tokenType_t token;
+  token: integer;
 
   ExprLevJ;
   while (TK_Member(LevIOps)) do
@@ -1601,7 +1601,7 @@ begin
 // Operators: * /  mod 
 static void ExprLevJ;
 begin
-  tokenType_t token;
+  token: integer;
   boolean unaryMinus;
 
   unaryMinus :=  FALSE;
@@ -1877,12 +1877,12 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static pcd_t TokenToPCD(tokenType_t token)
+static pcd_t TokenToPCD(token: integer)
 begin
   i: integer;
   static struct
   begin
-    tokenType_t token;
+    token: integer;
     pcd_t pcd;
    end;  operatorLookup[] := 
    begin
@@ -1940,12 +1940,12 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static pcd_t GetIncDecPCD(tokenType_t token, symbolType_t symbol)
+static pcd_t GetIncDecPCD(token: integer, symbolType_t symbol)
 begin
   i: integer;
   static struct
   begin
-    tokenType_t token;
+    token: integer;
     symbolType_t symbol;
     pcd_t pcd;
    end;  incDecLookup[] := 
