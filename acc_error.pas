@@ -27,6 +27,8 @@
 
 {$I Doom32.inc}
 
+interface
+
 const
   ERR_NONE = 0;
   ERR_NO_SYMBOL_MEM = 10;
@@ -99,6 +101,8 @@ const
   ERR_UNKNOWN_PRTYPE = 77;
   ERR_BAD_CHARACTER = 78;
 
+implementation
+  
 const
   ERROR_FILE_NAME = 'acs.err';
 
@@ -108,7 +112,7 @@ var
 type
   errormessage_t = record
     number: Integer;
-    name: string[40];
+    name: string[64];
   end;
 
 const
@@ -186,7 +190,6 @@ var
     (number: ERR_UNKNOWN_PRTYPE; name: 'Unknown cast type in print statement.'),
     (number: ERR_NONE; name: '')
   );
-  end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
@@ -194,105 +197,83 @@ var
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-procedure ERR_Exit(error_t error, boolean info, char *text, ...);
-begin
-  char workString[256];
+procedure ERR_Exit(error: ineteger; info: boolean; fmt: string; args: array of const);
+var
+  workString: string;
   va_list argPtr;
-   errFile: file;
-
-  errFile :=  fopen(ErrorFileName, 'w');
-  fprintf(stderr, '**** ERROR ****\n');
-  if info = YES then
+  errFile: file;
+begin
+  errFile := fopen(ErrorFileName, 'w');
+  printf('**** ERROR ****'#13#10);
+  if info then
   begin
-    sprintf(workString, 'Line %d in file \'%s\' ...\n', tk_Line,
-      tk_SourceName);
-    fprintf(stderr, workString);
-    if errFile then
-    begin
-      fprintf(errFile, workString);
-     end;
-   end;
+    sprintf(workString, 'Line %d in file ''%s'' ...'#13#10, [tk_Line, tk_SourceName]);
+    printf(workString);
+    fprintf(errFile, workString);
+  end;
   if error <> ERR_NONE then
   begin
-    if (ErrorText(error) <> NULL) then
+    if ErrorText(error) <> '' then
     begin
-      sprintf(workString, 'Error #%d: %s\n', error,
-        ErrorText(error));
-      fprintf(stderr, workString);
-      if errFile then
-      begin
-        fprintf(errFile, workString);
-       end;
-     end;
-   end;
-  if text then
-  begin
-    va_start(argPtr, text);
-    vsprintf(workString, text, argPtr);
-    va_end(argPtr);
-    fputs(workString, stderr);
-    fputc('\n', stderr);
-    if errFile then
-    begin
+      sprintf(workString, 'Error #%d: %s'#13#10, [error, ErrorText(error)]);
+      printf(workString);
       fprintf(errFile, workString);
      end;
-   end;
-  if errFile then
-  begin
-    fclose(errFile);
-   end;
-  exit(1);
   end;
+  if fmt <> '' then
+  begin
+    sprintf(workString, fmt, Args);
+    printf(workString + #13#10);
+    fprintf(errFile, workString + #13#10);
+  end;
+  fclose(errFile);
+  halt(1);
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // ERR_RemoveErrorFile
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure ERR_RemoveErrorFile;
 begin
-  remove(ErrorFileName);
-  end;
+  fdelete(ErrorFileName);
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // ErrorFileName
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 static char *ErrorFileName;
 begin
-  static char errFileName[MAX_FILE_NAME_LENGTH];
+  result := acs_SourceFileName;
+  if not MS_StripFilename(result) then
+    result := ERROR_FILE_NAME;
+end;
 
-  strcpy(errFileName, acs_SourceFileName);
-  if (MS_StripFilename(errFileName) = NO) then
-  begin
-    strcpy(errFileName, ERROR_FILE_NAME);
-   end;
-  else
-  begin
-    strcat(errFileName, DIRECTORY_DELIMITER ERROR_FILE_NAME);
-   end;
-  return errFileName;
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // ErrorText
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static char *ErrorText(error_t error)
-begin
+function ErrorText(const error: integer): string;
+var
   i: integer;
-
-  for(i :=  0; ErrorNames[i].number <> ERR_NONE; i++)
+begin
+  i := 0;
+  while ErrorNames[i].number <> ERR_NONE do
   begin
     if error = ErrorNames[i].number then
     begin
-      return ErrorNames[i].name;
-     end;
-   end;
-  return NULL;
+      result := ErrorNames[i].name;
+      exit;
+    end;
   end;
+  result := '';
+end;
+
+end.
