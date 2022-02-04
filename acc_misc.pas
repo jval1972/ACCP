@@ -1,27 +1,35 @@
+//------------------------------------------------------------------------------
+//
+//  ACCP Compiler - ACS Compiler (Pascal)
+//  Based on ACC code by by Ben Gokey.
+//
+//  Copyright (C) 1995 by Raven Software
+//  Copyright (C) 2022 by Jim Valavanis
+//
+//  This program is free software; you can redistribute it and/or
+//  modify it under the terms of the GNU General Public License
+//  as published by the Free Software Foundation; either version 2
+//  of the License, or (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+//  02111-1307, USA.
+//
+//------------------------------------------------------------------------------
+//  Site  : https://sourceforge.net/projects/delphidoom/
+//------------------------------------------------------------------------------
 
-/(**************************************************************************
-/(**
-/(** misc.c
-/(**
-/(**************************************************************************
+{$I Doom32.inc}
 
-// HEADER FILES ------------------------------------------------------------
+unit acc_misc;
 
-{$IFDEF __NeXT__}
-#include <libc.h>
-{$ELSE}
-#include <fcntl.h>
-#include <stdlib.h>
-#include <io.h>
-{$ENDIF}
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include <string.h>
-#include <ctype.h>
-#include 'common.h'
-#include 'misc.h'
-#include 'error.h'
+interface
 
 const
   MSG_NORMAL = 0;
@@ -33,120 +41,76 @@ const
   ASCII_BACKSLASH = 92;
   O_BINARY = 0;
 
-// TYPES -------------------------------------------------------------------
-
-// EXTERNAL FUNCTION PROTOTYPES --------------------------------------------
-
-// PUBLIC FUNCTION PROTOTYPES ----------------------------------------------
-
-// PRIVATE FUNCTION PROTOTYPES ---------------------------------------------
-
-// EXTERNAL DATA DECLARATIONS ----------------------------------------------
-
-extern boolean acs_BigEndianHost;
-extern boolean acs_VerboseMode;
-extern boolean acs_DebugMode;
-extern FILE *acs_DebugFile;
-
-// PUBLIC DATA DEFINITIONS -------------------------------------------------
-
-// PRIVATE DATA DEFINITIONS ------------------------------------------------
-
-// CODE --------------------------------------------------------------------
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// MS_Alloc
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-procedure *MS_Alloc(size_t size, error_t error);
+function MS_Alloc(const size: integer; const error: integer): pointer;
 begin
-procedure *mem;
+  result := malloc(size);
+  if result = nil then
+    ERR_Exit(error, false, '');
+end;
 
-  if ((mem :=  malloc(size)) = NULL) then
-  begin
-    ERR_Exit(error, NO, NULL);
-   end;
-  return mem;
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // MS_LittleUWORD
 //
 // Converts a host U_WORD (2 bytes) to little endian byte order.
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-U_WORD MS_LittleUWORD(U_WORD val)
+function MS_LittleUWORD(const v: U_WORD): U_WORD;
 begin
-  if acs_BigEndianHost = NO then
+  if not acs_BigEndianHost then
   begin
-    return val;
-   end;
-  return ((val) and (255) shl 8)+((val shr 8)) and (255);
+    result := v;
+    exit;
   end;
+  result := (v and 255) shl 8 + (val shr 8) and 255;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // MS_LittleULONG
 //
 // Converts a host U_LONG (4 bytes) to little endian byte order.
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-U_LONG MS_LittleULONG(U_LONG val)
+function MS_LittleULONG(const v: U_LONG): U_LONG;
 begin
-  if acs_BigEndianHost = NO then
+  if not acs_BigEndianHost then
   begin
-    return val;
+    result := v;
+    exit;
    end;
-  return ((val) and (255) shl 24)+(((val shr 8)) and (255) shl 16)+(((val shr 16)) and (255) shl 8)
-    +((val shr 24)) and (255);
-  end;
+  result := (v and 255) shl 24 + (((val shr 8) and 255) shl 16) + (((val shr 16) and 255) shl 8) +
+    (val shr 24) and 255;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // MS_LoadFile
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-int MS_LoadFile(char *name, void **buffer)
+function MS_LoadFile(const name: string; var buffer: pointer): pointer;
+var
+  handle: file;
+  size, cnt: integer;
 begin
-  handle: integer;
-  size: integer;
-  count: integer;
-procedure *addr;
-  struct stat fileInfo;
+  if not fopen(handle, name, fOpenReadOnly) then
+    ERR_Exit(ERR_CANT_OPEN_FILE, false, 'File: ''%s''.', [name]);
 
-  if (strlen(name) >= MAX_FILE_NAME_LENGTH) then
-  begin
-    ERR_Exit(ERR_FILE_NAME_TOO_LONG, NO, 'File: \'%s\'.', name);
-   end;
-  if ((handle :=  open(name, O_RDONLY) or (O_BINARY, 0666)) = -1) then
-  begin
-    ERR_Exit(ERR_CANT_OPEN_FILE, NO, 'File: \'%s\'.', name);
-   end;
-  if (fstat(handle,) and (fileInfo) = -1) then
-  begin
-    ERR_Exit(ERR_CANT_READ_FILE, NO, 'File: \'%s\'.', name);
-   end;
-  size :=  fileInfo.st_size;
-  if ((addr :=  malloc(size)) = NULL) then
-  begin
-    ERR_Exit(ERR_NONE, NO, 'Couldn't malloc %d bytes for '
-      'file \'%s\'.', size, name);
-   end;
-  count :=  read(handle, addr, size);
-  close(handle);
-  if count < size then
-  begin
-    ERR_Exit(ERR_CANT_READ_FILE, NO, 'File: \'%s\'.', name);
-   end;
-  *buffer :=  addr;
-  return size;
-  end;
+  size := fsize(handle);
+  buffer := mallooc(size);
+  if buffer = nil then
+    ERR_Exit(ERR_NONE, false, 'Couldn''t malloc %d bytes for file ''%s''.', [size, name]);
+
+  BlockRead(handle, buffer, size, cnt);
+  fclose(handle);
+  if cnt < size then
+    ERR_Exit(ERR_CANT_READ_FILE, false, 'File: ''%s''.', [name]);
+
+  result := size;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -154,179 +118,68 @@ procedure *addr;
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-boolean MS_SaveFile(char *name, void *buffer, int length)
+function MS_SaveFile(const name: string; const buffer: pointer; const len: integer): boolean;
+var
+  handle: file;
+  cnt:
 begin
-  handle: integer;
-  count: integer;
-
-  handle :=  open(name, O_WRONLY) or (O_CREAT) or (O_TRUNC) or (O_BINARY, 0666);
-  if handle = -1 then
+  if not fopen(handle, name, fCreate) then
   begin
-    return FALSE;
-   end;
-  count :=  write(handle, buffer, length);
-  close(handle);
-  if count < length then
-  begin
-    return FALSE;
-   end;
-  return TRUE;
+    result := false;
+    exit;
   end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// MS_StrCmp
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+  result := fwrite(buffer, len, 1, handle);
+  fclose(handle);
+end;
 
-int MS_StrCmp(char *s1, char *s2)
-begin
-  for(; tolower(*s1) = tolower(*s2); s1++, s2++)
-  begin
-    if *s1 = '\0' then
-    begin
-      return 0;
-     end;
-   end;
-  return tolower(*s1)-tolower(*s2);
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// MS_StrLwr
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-char *MS_StrLwr(char *string)
-begin
-  char *c;
-
-  c :=  string;
-  while *c do
-  begin
-    *c :=  tolower(*c);
-    c++;
-   end;
-  return string;
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// MS_StrUpr
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-char *MS_StrUpr(char *string)
-begin
-  char *c;
-
-  c :=  string;
-  while *c do
-  begin
-    *c :=  toupper(*c);
-    c++;
-   end;
-  return string;
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // MS_SuggestFileExt
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-procedure MS_SuggestFileExt(char *base, char *extension);
+procedure MS_SuggestFileExt(var base: string; const extension: string);
 begin
-  char *search;
+  base := fname(base) + '.' + extension;
+end;
 
-  search :=  base+strlen(base)-1;
-  while(*search <> ASCII_SLASH) and (*search <> ASCII_BACKSLASH
-   ) and (search <> base)
-   begin
-    if *search-- = '.' then
-    begin
-      exit;
-     end;
-   end;
-  strcat(base, extension);
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // MS_StripFileExt
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-procedure MS_StripFileExt(char *name);
+procedure MS_StripFileExt(var name: string);
+var
+  i: integer;
 begin
-  char *search;
-
-  search :=  name+strlen(name)-1;
-  while(*search <> ASCII_SLASH) and (*search <> ASCII_BACKSLASH
-   ) and (search <> name)
-   begin
-    if *search = '.' then
-    begin
-      *search :=  '\0';
-      exit;
-     end;
-    search--;
-   end;
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// MS_StripFilename
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-boolean MS_StripFilename(char *name)
-begin
-  char *c;
-
-  c :=  name+strlen(name);
-  do
+  for i := Length(name) downto 1 do
   begin
-    if --c = name then
-     begin  // No directory delimiter
-      return NO;
-     end;
-   end; while(*c <> DIRECTORY_DELIMITER_CHAR);
-  *c :=  0;
-  return YES;
+    if name[i] = '.' then
+      SetLength(name, i - 1)
+    else if name[i] in ['\', '/'] then
+      break;
   end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // MS_Message
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-procedure MS_Message(typ: integer; char *text, ...);
+procedure MS_Message(const typ: integer; const fmt: string; var args: array of const = []);
 begin
-   fp: file;
-  va_list argPtr;
-
-  if (type = MSG_VERBOSE) and (acs_VerboseMode = NO) then
-  begin
-    exit;
-   end;
-  fp :=  stdout;
-  if type = MSG_DEBUG then
-  begin
-    if acs_DebugMode = NO then
-    begin
+  if typ = MSG_VERBOSE then
+    if not acs_VerboseMode then
       exit;
-     end;
-    if acs_DebugFile <> NULL then
-    begin
-      fp :=  acs_DebugFile;
-     end;
-   end;
-  if text then
-  begin
-    va_start(argPtr, text);
-    vfprintf(fp, text, argPtr);
-    va_end(argPtr);
-   end;
-  end;
+
+  if typ = MSG_DEBUG then
+    if not acs_DebugMode then
+      exit;
+
+  printf(ftm, args);
+end;
+
+end.
