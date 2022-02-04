@@ -14,6 +14,61 @@
 #include 'misc.h'
 
 // MACROS ------------------------------------------------------------------
+typedef enum
+{
+	SY_LABEL,
+	SY_SCRIPTVAR,
+	SY_MAPVAR,
+	SY_WORLDVAR,
+	SY_SPECIAL,
+	SY_CONSTANT,
+	SY_INTERNFUNC
+} symbolType_t;
+
+typedef struct
+{
+	int index;
+} symVar_t;
+
+typedef struct
+{
+	int address;
+} symLabel_t;
+
+typedef struct
+{
+	int value;
+	int argCount;
+} symSpecial_t;
+
+typedef struct
+{
+	int value;
+} symConstant_t;
+
+typedef struct
+{
+	pcd_t directCommand;
+	pcd_t stackCommand;
+	int argCount;
+	boolean hasReturnValue;
+} symInternFunc_t;
+
+typedef struct symbolNode_s
+{
+	struct symbolNode_s *left;
+	struct symbolNode_s *right;
+	char *name;
+	symbolType_t type;
+	union
+	{
+		symVar_t var;
+		symLabel_t label;
+		symSpecial_t special;
+		symConstant_t constant;
+		symInternFunc_t internFunc;
+	} info;
+} symbolNode_t;
 
 // TYPES -------------------------------------------------------------------
 
