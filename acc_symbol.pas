@@ -1,283 +1,296 @@
+//------------------------------------------------------------------------------
+//
+//  ACCP Compiler - ACS Compiler (Pascal)
+//  Based on ACC code by by Ben Gokey.
+//
+//  Copyright (C) 1995 by Raven Software
+//  Copyright (C) 2022 by Jim Valavanis
+//
+//  This program is free software; you can redistribute it and/or
+//  modify it under the terms of the GNU General Public License
+//  as published by the Free Software Foundation; either version 2
+//  of the License, or (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+//  02111-1307, USA.
+//
+//------------------------------------------------------------------------------
+//  Site  : https://sourceforge.net/projects/delphidoom/
+//------------------------------------------------------------------------------
 
-/(**************************************************************************
-/(**
-/(** symbol.c
-/(**
-/(**************************************************************************
+{$I Doom32.inc}
 
-// HEADER FILES ------------------------------------------------------------
+unit acc_symbol;
 
-#include <string.h>
-#include <stdlib.h>
-#include 'common.h'
-#include 'symbol.h'
-#include 'misc.h'
+interface
 
-// MACROS ------------------------------------------------------------------
-typedef enum
-{
-	SY_LABEL,
-	SY_SCRIPTVAR,
-	SY_MAPVAR,
-	SY_WORLDVAR,
-	SY_SPECIAL,
-	SY_CONSTANT,
-	SY_INTERNFUNC
-} symbolType_t;
+type
+  symbolType_t = (
+    SY_LABEL,
+    SY_SCRIPTVAR,
+    SY_MAPVAR,
+    SY_WORLDVAR,
+    SY_SPECIAL,
+    SY_CONSTANT,
+    SY_INTERNFUNC
+  );
 
-typedef struct
-{
-	int index;
-} symVar_t;
-
-typedef struct
-{
-	int address;
-} symLabel_t;
-
-typedef struct
-{
-	int value;
-	int argCount;
-} symSpecial_t;
-
-typedef struct
-{
-	int value;
-} symConstant_t;
-
-typedef struct
-{
-	pcd_t directCommand;
-	pcd_t stackCommand;
-	int argCount;
-	boolean hasReturnValue;
-} symInternFunc_t;
-
-typedef struct symbolNode_s
-{
-	struct symbolNode_s *left;
-	struct symbolNode_s *right;
-	char *name;
-	symbolType_t type;
-	union
-	{
-		symVar_t var;
-		symLabel_t label;
-		symSpecial_t special;
-		symConstant_t constant;
-		symInternFunc_t internFunc;
-	} info;
-} symbolNode_t;
-
-// TYPES -------------------------------------------------------------------
-
-typedef struct
-begin
-  char *name;
-  pcd_t directCommand;
-  pcd_t stackCommand;
-  argCount: integer;
-  boolean hasReturnValue;
-  end; internFuncDef_t;
-
-// EXTERNAL FUNCTION PROTOTYPES --------------------------------------------
-
-// PUBLIC FUNCTION PROTOTYPES ----------------------------------------------
-
-// PRIVATE FUNCTION PROTOTYPES ---------------------------------------------
-
-static symbolNode_t *Find(char *name, symbolNode_t *root);
-static symbolNode_t *Insert(char *name, symbolType_t type,
-  symbolNode_t **root);
-static void FreeNodes(symbolNode_t *root);
-
-// EXTERNAL DATA DECLARATIONS ----------------------------------------------
-
-// PUBLIC DATA DEFINITIONS -------------------------------------------------
-
-// PRIVATE DATA DEFINITIONS ------------------------------------------------
-
-static symbolNode_t *LocalRoot;
-static symbolNode_t *GlobalRoot;
-
-static internFuncDef_t InternalFunctions[] := 
-begin
-  'tagwait', PCD_TAGWAITDIRECT, PCD_TAGWAIT, 1, NO,
-  'polywait', PCD_POLYWAITDIRECT, PCD_POLYWAIT, 1, NO,
-  'scriptwait', PCD_SCRIPTWAITDIRECT, PCD_SCRIPTWAIT, 1, NO,
-  'delay', PCD_DELAYDIRECT, PCD_DELAY, 1, NO,
-  'random', PCD_RANDOMDIRECT, PCD_RANDOM, 2, YES,
-  'thingcount', PCD_THINGCOUNTDIRECT, PCD_THINGCOUNT, 2, YES,
-  'changefloor', PCD_CHANGEFLOORDIRECT, PCD_CHANGEFLOOR, 2, NO,
-  'changeceiling', PCD_CHANGECEILINGDIRECT, PCD_CHANGECEILING, 2, NO,
-  'lineside', PCD_NOP, PCD_LINESIDE, 0, YES,
-  'clearlinespecial', PCD_NOP, PCD_CLEARLINESPECIAL, 0, NO,
-  'playercount', PCD_NOP, PCD_PLAYERCOUNT, 0, YES,
-  'gametype', PCD_NOP, PCD_GAMETYPE, 0, YES,
-  'gameskill', PCD_NOP, PCD_GAMESKILL, 0, YES,
-  'timer', PCD_NOP, PCD_TIMER, 0, YES,
-  'sectorsound', PCD_NOP, PCD_SECTORSOUND, 2, NO,
-  'ambientsound', PCD_NOP, PCD_AMBIENTSOUND, 2, NO,
-  'soundsequence', PCD_NOP, PCD_SOUNDSEQUENCE, 1, NO,
-  'setlinetexture', PCD_NOP, PCD_SETLINETEXTURE, 4, NO,
-  'setlineblocking', PCD_NOP, PCD_SETLINEBLOCKING, 2, NO,
-  'setlinespecial', PCD_NOP, PCD_SETLINESPECIAL, 7, NO,
-  'thingsound', PCD_NOP, PCD_THINGSOUND, 3, NO,
-  NULL
+type
+  symVar_t = record
+    index: integer;
   end;
 
-static char *SymbolTypeNames[] := 
-begin
-  'SY_LABEL',
-  'SY_SCRIPTVAR',
-  'SY_MAPVAR',
-  'SY_WORLDVAR',
-  'SY_SPECIAL',
-  'SY_CONSTANT',
-  'SY_INTERNFUNC'
+  symLabel_t = record
+    address: integer;
   end;
 
-// CODE --------------------------------------------------------------------
+  symSpecial_t = record
+    value: integer;
+    argCount: integer;
+  end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+  symConstant_t = record
+    value: integer;
+  end;
+
+  symInternFunc_t = record
+    directCommand: integer;
+    stackCommand: integer;
+    argCount: integer;
+    hasReturnValue: boolean;
+  end;
+
+  symbolInfo_t = record
+  case integer of
+    0: (svar: symVar_t);
+    1: (slabel: symLabel_t);
+    2: (special: symSpecial_t);
+    3: (constant: symConstant_t);
+    4: (internFunc: symInternFunc_t);
+  end;
+
+  PPsymbolNode_t = ^PsymbolNode_t;
+  PsymbolNode_t = ^symbolNode_t;
+  symbolNode_t = record
+    left, right: PsymbolNode_t;
+    name: string;
+    typ: symbolType_t;
+    info: symbolInfo_t;
+  end;
+
+  PinternFuncDef_t = ^internFuncDef_t;
+  internFuncDef_t = record
+    name: string;
+    directCommand: integer;
+    stackCommand: integer;
+    argCount: integer;
+    hasReturnValue: boolean;
+  end;
+
+implementation
+
+var
+  LocalRoot: PsymbolNode_t;
+  GlobalRoot: PsymbolNode_t;
+
+const
+  NUMINTERLANFUNCTIONS = 22;
+
+const
+  InternalFunctions: array[0..NUMINTERLANFUNCTIONS - 1] of internFuncDef_t = (
+    (name: 'tagwait';           directCommand: PCD_TAGWAITDIRECT;       stackCommand: PCD_TAGWAIT;          argCount: 1; hasReturnValue: false),
+    (name: 'polywait';          directCommand: PCD_POLYWAITDIRECT;      stackCommand: PCD_POLYWAIT;         argCount: 1; hasReturnValue: false),
+    (name: 'scriptwait';        directCommand: PCD_SCRIPTWAITDIRECT;    stackCommand: PCD_SCRIPTWAIT;       argCount: 1; hasReturnValue: false),
+    (name: 'delay';             directCommand: PCD_DELAYDIRECT;         stackCommand: PCD_DELAY;            argCount: 1; hasReturnValue: false),
+    (name: 'random';            directCommand: PCD_RANDOMDIRECT;        stackCommand: PCD_RANDOM;           argCount: 2; hasReturnValue: true),
+    (name: 'thingcount';        directCommand: PCD_THINGCOUNTDIRECT;    stackCommand: PCD_THINGCOUNT;       argCount: 2; hasReturnValue: true),
+    (name: 'changefloor';       directCommand: PCD_CHANGEFLOORDIRECT;   stackCommand: PCD_CHANGEFLOOR;      argCount: 2; hasReturnValue: false),
+    (name: 'changeceiling';     directCommand: PCD_CHANGECEILINGDIRECT; stackCommand: PCD_CHANGECEILING;    argCount: 2; hasReturnValue: false),
+    (name: 'lineside';          directCommand: PCD_NOP;                 stackCommand: PCD_LINESIDE;         argCount: 0; hasReturnValue: true),
+    (name: 'clearlinespecial';  directCommand: PCD_NOP;                 stackCommand: PCD_CLEARLINESPECIAL; argCount: 0; hasReturnValue: false),
+    (name: 'playercount';       directCommand: PCD_NOP;                 stackCommand: PCD_PLAYERCOUNT;      argCount: 0; hasReturnValue: true),
+    (name: 'gametype';          directCommand: PCD_NOP;                 stackCommand: PCD_GAMETYPE;         argCount: 0; hasReturnValue: true),
+    (name: 'gameskill';         directCommand: PCD_NOP;                 stackCommand: PCD_GAMESKILL;        argCount: 0; hasReturnValue: true),
+    (name: 'timer';             directCommand: PCD_NOP;                 stackCommand: PCD_TIMER;            argCount: 0; hasReturnValue: true),
+    (name: 'sectorsound';       directCommand: PCD_NOP;                 stackCommand: PCD_SECTORSOUND;      argCount: 2; hasReturnValue: false),
+    (name: 'ambientsound';      directCommand: PCD_NOP;                 stackCommand: PCD_AMBIENTSOUND;     argCount: 2; hasReturnValue: false),
+    (name: 'soundsequence';     directCommand: PCD_NOP;                 stackCommand: PCD_SOUNDSEQUENCE;    argCount: 1; hasReturnValue: false),
+    (name: 'setlinetexture';    directCommand: PCD_NOP;                 stackCommand: PCD_SETLINETEXTURE;   argCount: 4; hasReturnValue: false),
+    (name: 'setlineblocking';   directCommand: PCD_NOP;                 stackCommand: PCD_SETLINEBLOCKING;  argCount: 2; hasReturnValue: false),
+    (name: 'setlinespecial';    directCommand: PCD_NOP;                 stackCommand: PCD_SETLINESPECIAL;   argCount: 7; hasReturnValue: false),
+    (name: 'thingsound';        directCommand: PCD_NOP;                 stackCommand: PCD_THINGSOUND;       argCount: 3; hasReturnValue: false),
+    (name: '';                  directCommand: PCD_NOP;                 stackCommand: PCD_NOP;              argCount: 0; hasReturnValue: false)
+  );
+
+const
+  SymbolTypeNames: array[symbolType_t] = (
+    'SY_LABEL',
+    'SY_SCRIPTVAR',
+    'SY_MAPVAR',
+    'SY_WORLDVAR',
+    'SY_SPECIAL',
+    'SY_CONSTANT',
+    'SY_INTERNFUNC'
+  );
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // SY_Init
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure SY_Init;
+var
+  sym: PsymbolNode_t;
+  def: PinternFuncDef_t;
 begin
-  symbolNode_t *sym;
-  internFuncDef_t *def;
+  LocalRoot := nil;
+  GlobalRoot := nil;
 
-  LocalRoot :=  NULL;
-  GlobalRoot :=  NULL;
-  for(def :=  InternalFunctions; def.name <> NULL; def++)
+  def := @InternalFunctions[0];
+  while def.name <> '' do
   begin
-    sym :=  SY_InsertGlobal(def.name, SY_INTERNFUNC);
-    sym.info.internFunc.directCommand :=  def.directCommand;
-    sym.info.internFunc.stackCommand :=  def.stackCommand;
-    sym.info.internFunc.argCount :=  def.argCount;
-    sym.info.internFunc.hasReturnValue :=  def.hasReturnValue;
-   end;
+    sym := SY_InsertGlobal(def.name, SY_INTERNFUNC);
+    sym.info.internFunc.directCommand := def.directCommand;
+    sym.info.internFunc.stackCommand := def.stackCommand;
+    sym.info.internFunc.argCount := def.argCount;
+    sym.info.internFunc.hasReturnValue := def.hasReturnValue;
+    inc(def);
   end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // SY_Find
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-symbolNode_t *SY_Find(char *name)
+function SY_Find(const name: string): PsymbolNode_t;
+var
+  node: PsymbolNode_t;
 begin
-  symbolNode_t *node;
-
-  if ((node :=  SY_FindGlobal(name)) = NULL) then
+  node := SY_FindGlobal(name);
+  if node = nil then
   begin
-    return SY_FindLocal(name);
-   end;
-  return node;
+    result := SY_FindLocal(name);
+    exit;
   end;
+  result := node;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // SY_FindGlobal
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-symbolNode_t *SY_FindGlobal(char *name)
+function SY_FindGlobal(const name: string): PsymbolNode_t
 begin
-  return Find(name, GlobalRoot);
-  end;
+  result := DoFind(name, GlobalRoot);
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // SY_Findlocal
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-symbolNode_t *SY_FindLocal(char *name)
+function SY_FindLocal(const name: string): PsymbolNode_t
 begin
-  return Find(name, LocalRoot);
-  end;
+  result := DoFind(name, LocalRoot);
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // Find
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static symbolNode_t *Find(char *name, symbolNode_t *root)
-begin
+function DoFind(const name: string; const root: PsymbolNode_t); PsymbolNode_t;
+var
   compare: integer;
-  symbolNode_t *node;
-
-  node :=  root;
-  while node <> NULL do
+  node: PsymbolNode_t;
+begin
+  node := root;
+  while node <> nil do
   begin
-    compare :=  strcmp(name, node.name);
+    compare := strcmp(name, node.name);
     if compare = 0 then
     begin
-      return node;
-     end;
-    node :=  compare < 0 ? node.left : node.right;
-   end;
-  return NULL;
+      result := node;
+      exit;
+    end;
+    if compare < 0 then
+      node := node.left
+    else
+      node :=  node.right;
   end;
+  result := nil;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // SY_InsertLocal
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-symbolNode_t *SY_InsertLocal(char *name, symbolType_t type)
+function SY_InsertLocal(const name: string; const typ: symbolType_t): PsymbolNode_t;
 begin
-  MS_Message(MSG_DEBUG, 'Inserting local identifier: %s (%s)\n',
-    name, SymbolTypeNames[type]);
-  return Insert(name, type,) and (LocalRoot);
-  end;
+  MS_Message(MSG_DEBUG, 'Inserting local identifier: %s (%s)'#13#10,
+    [name, SymbolTypeNames[typ]]);
+  result := DoInsert(name, typ, @LocalRoot);
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // SY_InsertGlobal
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-symbolNode_t *SY_InsertGlobal(char *name, symbolType_t type)
+function SY_InsertGlobal(const name: string; const typ: symbolType_t): PsymbolNode_t;
 begin
-  MS_Message(MSG_DEBUG, 'Inserting global identifier: %s (%s)\n',
-    name, SymbolTypeNames[type]);
-  return Insert(name, type,) and (GlobalRoot);
-  end;
+  MS_Message(MSG_DEBUG, 'Inserting global identifier: %s (%s)'#13#10,
+    [name, SymbolTypeNames[typ]]);
+  result := DoInsert(name, typ, @GlobalRoot);
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // Insert
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static symbolNode_t *Insert(char *name, symbolType_t type,
-  symbolNode_t **root)
-  begin
+function DoInsert(const name: string; const typ: symbolType_t; var root: PPsymbolNode_t): PsymbolNode_t;
+var
   compare: integer;
-  symbolNode_t *newNode;
-  symbolNode_t *node;
-
-  newNode :=  MS_Alloc(sizeof(symbolNode_t), ERR_NO_SYMBOL_MEM);
-  newNode.name :=  MS_Alloc(strlen(name)+1, ERR_NO_SYMBOL_MEM);
-  strcpy(newNode.name, name);
-  newNode.left :=  newNode.right :=  NULL;
-  newNode.type :=  type;
-  while ((node :=  *root) <> NULL) do
+  newNode: PsymbolNode_t;
+  node: PsymbolNode_t;
+begin
+  newNode := MS_Alloc(SizeOf(symbolNode_t), ERR_NO_SYMBOL_MEM);
+  newNode.name := name;
+  newNode.left := nil;
+  newNode.right := nil;
+  newNode.typ := typ;
+  node := root^;
+  while node <> nil do
   begin
-    compare :=  strcmp(name, node.name);
-    root :=  compare < 0 ?) and ((node.left) :) and ((node.right);
+    compare := strcmp(name, node.name);
+    if compare < 0 then
+      root := @node.left
+    else
+      root := @node.right;
+    node := root^;
    end;
-  *root :=  newNode;
-  return(newNode);
-  end;
+  root^ := newNode;
+  result := newNode;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -289,36 +302,36 @@ procedure SY_FreeLocals;
 begin
   MS_Message(MSG_DEBUG, 'Freeing local identifiers\n');
   FreeNodes(LocalRoot);
-  LocalRoot :=  NULL;
-  end;
+  LocalRoot := nil;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // SY_FreeGlobals
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure SY_FreeGlobals;
 begin
   MS_Message(MSG_DEBUG, 'Freeing global identifiers\n');
   FreeNodes(GlobalRoot);
-  GlobalRoot :=  NULL;
-  end;
+  GlobalRoot := nil;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // FreeNodes
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static void FreeNodes(symbolNode_t *root)
+procedure FreeNodes(var root: symbolNode_t);
 begin
-  if root = NULL then
-  begin
+  if root = nil then
     exit;
-   end;
+
   FreeNodes(root.left);
   FreeNodes(root.right);
-  free(root.name);
-  free(root);
-  end;
+  memfree(Pointer(root), SizeOf(symbolNode_t));
+end;
+
+end.
