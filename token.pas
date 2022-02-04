@@ -30,6 +30,84 @@
 
 // TYPES -------------------------------------------------------------------
 
+const
+  TK_NONE = 0;  
+  TK_EOF = 1;  
+  TK_IDENTIFIER = 2;  // VALUE: (char *) tk_String
+  TK_STRING = 3;  // VALUE: (char *) tk_String
+  TK_NUMBER = 4;  // VALUE: (int) tk_Number
+  TK_LINESPECIAL = 5;  // VALUE: (int) tk_LineSpecial
+  TK_PLUS = 6;  // '+'
+  TK_MINUS = 7;  // '-'
+  TK_ASTERISK = 8;  // '*'
+  TK_SLASH = 9;  // '/'
+  TK_PERCENT = 10;  // '%'
+  TK_ASSIGN = 11;  // '='
+  TK_ADDASSIGN = 12;  // '+='
+  TK_SUBASSIGN = 13;  // '-='
+  TK_MULASSIGN = 14;  // '*='
+  TK_DIVASSIGN = 15;  // '/='
+  TK_MODASSIGN = 16;  // '%='
+  TK_INC = 17;  // '++'
+  TK_DEC = 18;  // '--'
+  TK_EQ = 19;  // '=='
+  TK_NE = 20;  // '!='
+  TK_LT = 21;  // '<'
+  TK_GT = 22;  // '>'
+  TK_LE = 23;  // '<='
+  TK_GE = 24;  // '>='
+  TK_LSHIFT = 25;  // '<<'
+  TK_RSHIFT = 26;  // '>>'
+  TK_ANDLOGICAL = 27;  // '&&'
+  TK_ORLOGICAL = 28;  // '||'
+  TK_ANDBITWISE = 29;  // '&'
+  TK_ORBITWISE = 30;  // '|'
+  TK_EORBITWISE = 31;  // '^'
+  TK_TILDE = 32;  // '~'
+  TK_LPAREN = 33;  // '('
+  TK_RPAREN = 34;  // ')'
+  TK_LBRACE = 35;  // '{'
+  TK_RBRACE = 36;  // '}'
+  TK_LBRACKET = 37;  // '['
+  TK_RBRACKET = 38;  // ']'
+  TK_COLON = 39;  // ':'
+  TK_SEMICOLON = 40;  // ';'
+  TK_COMMA = 41;  // ''
+  TK_PERIOD = 42;  // '.'
+  TK_NOT = 43;  // '!'
+  TK_NUMBERSIGN = 44;  // '#'
+  TK_CPPCOMMENT = 45;  // '//'
+  TK_STARTCOMMENT = 46;  // '/*'
+  TK_ENDCOMMENT = 47;  // '*/'
+  TK_BREAK = 48;  // 'break'
+  TK_CASE = 49;  // 'case'
+  TK_CONST = 50;  // 'const'
+  TK_CONTINUE = 51;  // 'continue'
+  TK_DEFAULT = 52;  // 'default'
+  TK_DEFINE = 53;  // 'define'
+  TK_DO = 54;  // 'do'
+  TK_ELSE = 55;  // 'else'
+  TK_FOR = 56;  // 'for'
+  TK_GOTO = 57;  // 'goto'
+  TK_IF = 58;  // 'if'
+  TK_INCLUDE = 59;  // 'include'
+  TK_INT = 60;  // 'int'
+  TK_OPEN = 61;  // 'open'
+  TK_PRINT = 62;  // 'print'
+  TK_PRINTBOLD = 63;  // 'printbold'
+  TK_RESTART = 64;  // 'restart'
+  TK_SCRIPT = 65;  // 'script'
+  TK_SPECIAL = 66;  // 'special'
+  TK_STR = 67;  // 'str'
+  TK_SUSPEND = 68;  // 'suspend'
+  TK_SWITCH = 69;  // 'switch'
+  TK_TERMINATE = 70;  // 'terminate'
+  TK_UNTIL = 71;  // 'until'
+  TK_VOID = 72;  // 'void'
+  TK_WHILE = 73;  // 'while'
+  TK_WORLD = 74;  // 'world'
+
+
 typedef enum
 begin
   CHR_EOF,
@@ -77,7 +155,7 @@ static void SkipCPPComment;
 
 // PUBLIC DATA DEFINITIONS -------------------------------------------------
 
-tokenType_t tk_Token;
+integer tk_Token;
   tk_Line: integer;
   tk_Number: integer;
 char *tk_String;
@@ -105,7 +183,7 @@ static char IncludePath[MAX_FILE_NAME_LENGTH];
 static struct
 begin
   char *name;
-  tokenType_t token;
+  integer token;
   end; Keywords[] :=
   begin
   'break', TK_BREAK,
@@ -315,7 +393,7 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-tokenType_t TK_NextToken;
+integer TK_NextToken;
 begin
   boolean validToken;
 
@@ -398,7 +476,7 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-procedure TK_NextTokenMustBe(tokenType_t token, error_t error);
+procedure TK_NextTokenMustBe(integer token, error_t error);
 begin
   if TK_NextToken <> token then
   begin
@@ -412,7 +490,7 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-procedure TK_TokenMustBe(tokenType_t token, error_t error);
+procedure TK_TokenMustBe(integer token, error_t error);
 begin
   if tk_Token <> token then
   begin
@@ -426,7 +504,7 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-boolean TK_Member(tokenType_t *list)
+boolean TK_Member(integer *list)
 begin
   i: integer;
 
