@@ -41,7 +41,8 @@ uses
   acc_pcode in 'acc_pcode.pas',
   acc_strlist in 'acc_strlist.pas',
   acc_symbol in 'acc_symbol.pas',
-  acc_token in 'acc_token.pas';
+  acc_token in 'acc_token.pas',
+  d_delphi in 'd_delphi.pas';
 
 begin
   { TODO -oUser -cConsole Main : Insert code here }
