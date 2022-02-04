@@ -197,7 +197,7 @@ var
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-procedure ERR_Exit(error: ineteger; info: boolean; fmt: string; args: array of const);
+procedure ERR_Exit(error: ineteger; info: boolean; fmt: string; args: array of const = []);
 var
   workString: string;
   va_list argPtr;
