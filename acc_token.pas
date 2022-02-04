@@ -293,18 +293,10 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void MakeIncludePath(char *sourceName)
+procedure MakeIncludePath(const sourceName: string);
 begin
-  strcpy(IncludePath, sourceName);
-  if (MS_StripFilename(IncludePath) = NO) then
-  begin
-    IncludePath[0] :=  0;
-   end;
-  else
-   begin  // Add a directory delimiter to the include path
-    strcat(IncludePath, DIRECTORY_DELIMITER);
-   end;
-  end;
+  IncludePath := fpath(sourceName);
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
