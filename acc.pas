@@ -1,72 +1,191 @@
-
-/(**************************************************************************
-/(**
-/(** acc.c
-/(**
-/(**************************************************************************
-
-// HEADER FILES ------------------------------------------------------------
-
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include 'common.h'
-#include 'token.h'
-#include 'error.h'
-#include 'symbol.h'
-#include 'misc.h'
-#include 'pcode.h'
-#include 'parse.h'
-#include 'strlist.h'
-
-// MACROS ------------------------------------------------------------------
-
-#define VERSION_TEXT '1.10'
-#define COPYRIGHT_YEARS_TEXT '1995'
-
-// TYPES -------------------------------------------------------------------
-
-// EXTERNAL FUNCTION PROTOTYPES --------------------------------------------
-
-// PUBLIC FUNCTION PROTOTYPES ----------------------------------------------
-
-// PRIVATE FUNCTION PROTOTYPES ---------------------------------------------
-
-static void Init;
-static void DisplayBanner;
-static void DisplayUsage;
-static void OpenDebugFile(char *name);
-static void ProcessArgs;
-
-// EXTERNAL DATA DECLARATIONS ----------------------------------------------
-
-// PUBLIC DATA DEFINITIONS -------------------------------------------------
-
-boolean acs_BigEndianHost;
-boolean acs_VerboseMode;
-boolean acs_DebugMode;
-   acs_DebugFile: file;
-char acs_SourceFileName[MAX_FILE_NAME_LENGTH];
-
-// PRIVATE DATA DEFINITIONS ------------------------------------------------
-
-static int ArgCount;
-static char **ArgVector;
-static char ObjectFileName[MAX_FILE_NAME_LENGTH];
-
-// CODE --------------------------------------------------------------------
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+//------------------------------------------------------------------------------
 //
-// main
+//  ACCP Compiler - ACS Compiler (Pascal)
+//  Based on ACC code by by Ben Gokey.
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+//  Copyright (C) 1995 by Raven Software
+//  Copyright (C) 2022 by Jim Valavanis
+//
+//  This program is free software; you can redistribute it and/or
+//  modify it under the terms of the GNU General Public License
+//  as published by the Free Software Foundation; either version 2
+//  of the License, or (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+//  02111-1307, USA.
+//
+//------------------------------------------------------------------------------
+//  Site  : https://sourceforge.net/projects/delphidoom/
+//------------------------------------------------------------------------------
 
-int main(int argc, char **argv)
+{$I Doom32.inc}
+
+unit acc;
+
+interface
+
+uses
+  d_delphi;
+
+procedure acc_main(const argc: integer; const argv: TDStringList);
+
+implementation
+
+const
+  ACC_VERSION_TEXT = '1.10';
+  ACC_COPYRIGHT_YEARS_TEXT = '1995';
+
+var
+  acs_BigEndianHost: boolean;
+  acs_VerboseMode: boolean;
+  acs_DebugMode: boolean;
+  acs_SourceFileName: string;
+  ObjectFileName: string;
+  ArgCount: integer;
+  ArgVector: TDStringList;
+
+function one_or_many(const x: integer; const ifone, ifmany: string): string;
 begin
-  ArgCount :=  argc;
-  ArgVector :=  argv;
+  if x = 1 then
+    result := ifone
+  else
+    result := ifmany;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// DisplayBanner
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure DisplayBanner;
+begin
+  writeln(#13#10'ACC Version ' + ACC_VERSION_TEXT + ' by Ben Gokey'#13#10);
+  writeln('Copyright (c) ' + ACC_COPYRIGHT_YEARS_TEXT + ' Raven Software, Corp.'#13#10);
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// Init
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure Init;
+begin
+  acs_BigEndianHost := false;
+  acs_VerboseMode := true;
+  acs_DebugMode := false;
+  TK_Init;
+  SY_Init;
+  STR_Init;
+  ProcessArgs;
+  MS_Message(MSG_NORMAL, 'Host byte order: %s endian'#13#10,
+    [decide(acs_BigEndianHost, 'BIG', 'LITTLE')]);
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// ProcessArgs
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure ProcessArgs;
+var
+  i: integer;
+  count: integer;
+  txt: string;
+  option: char;
+begin
+  count := 0;
+  for i := 0 to ArgCount - 1 do
+  begin
+    txt := ArgVector[i];
+    if Pos('-', txt) = 1 then
+    begin
+      Delete(txt, 1, 1);
+      if txt = '' then
+      begin
+        DisplayUsage;
+      end;
+      option := toupper(txt[1]);
+      case option of
+        'B':
+          begin
+            if Length(txt) <> 1 then
+              DisplayUsage;
+            acs_BigEndianHost := true;
+          end;
+        'L':
+          begin
+            if Length(txt) <> 1 then
+              DisplayUsage;
+            acs_BigEndianHost := false;
+          end;
+        'D':
+          begin
+            acs_DebugMode := YES;
+            acs_VerboseMode := YES;
+          end;
+      else
+        DisplayUsage;
+      end;
+      continue;
+    end;
+    Inc(count);
+    case count of
+      1:
+        begin
+          acs_SourceFileName := txt;
+          MS_SuggestFileExt(acs_SourceFileName, '.acs');
+        end;
+      2:
+        begin
+          ObjectFileName := txt;
+          MS_SuggestFileExt(ObjectFileName, '.o');
+        end;
+    else
+      DisplayUsage;
+    end;
+  end;
+
+  if count = 0 then
+    DisplayUsage;
+
+  if count = 1 then
+  begin
+    ObjectFileName := acs_SourceFileName;
+    MS_StripFileExt(ObjectFileName);
+    MS_SuggestFileExt(ObjectFileName, '.o');
+  end;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// DisplayUsage
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure DisplayUsage;
+begin
+  writeln('Usage: ACCP [options] source[.acs] [object[.o]]'#13#10);
+  writeln('-b       Set host native byte order to big endian');
+  writeln('-l       Set host native byte order to little endian');
+  writeln('-d[file] Output debugging information');
+  Halt(1);
+end;
+
+procedure acc_main(const argc: integer; const argv: TDStringList);
+begin
+  ArgCount := argc;
+  ArgVector := argv;
+
   DisplayBanner;
   Init;
 
@@ -76,200 +195,21 @@ begin
   PC_CloseObject;
   TK_CloseSource;
 
-  MS_Message(MSG_NORMAL, '\n\'%s\':\n  %d %s (%d included),',
-    acs_SourceFileName, tk_Line, tk_Line = 1 ? 'line' : 'lines',
-    tk_IncludedLines);
-  MS_Message(MSG_NORMAL, ' %d %s (%d open), %d functions\n',
-    pa_ScriptCount, pa_ScriptCount = 1 ? 'script' : 'scripts',
-    pa_OpenScriptCount, 0);
-  MS_Message(MSG_NORMAL, '  %d world %s, %d map %s\n',
-    pa_WorldVarCount, pa_WorldVarCount = 1 ? 'variable' :
-    'variables', pa_MapVarCount, pa_MapVarCount = 1 ?
-    'variable' : 'variables');
-  MS_Message(MSG_NORMAL, '  object \'%s\': %d bytes\n',
-    ObjectFileName, pc_Address);
+  MS_Message(MSG_NORMAL, #13#10'''%s'':'#13#10'  %d %s (%d included),',
+    [acs_SourceFileName, tk_Line, one_or_many(tk_Line, 'line', 'lines'),
+     tk_IncludedLines]);
+
+  MS_Message(MSG_NORMAL, ' %d %s (%d open), %d functions'#13#10,
+    [pa_ScriptCount, one_or_many(pa_ScriptCount, 'script', 'scripts'),
+     pa_OpenScriptCount, 0]);
+
+  MS_Message(MSG_NORMAL, '  %d world %s, %d map %s'#13#10,
+    [pa_WorldVarCount, one_or_many(pa_WorldVarCount, 'variable', 'variables'),
+     pa_MapVarCount, one_or_many(pa_MapVarCount, 'variable', 'variables']);
+
+  MS_Message(MSG_NORMAL, '  object ''%s'': %d bytes'#13#10,
+    [ObjectFileName, pc_Address]);
   ERR_RemoveErrorFile;
-  return 0;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// DisplayBanner
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-static void DisplayBanner;
-begin
-  fprintf(stderr, '\nACC Version 'VERSION_TEXT' ('__DATE__')'
-    ' by Ben Gokey\n');
-  fprintf(stderr, 'Copyright (c) 'COPYRIGHT_YEARS_TEXT
-    ' Raven Software, Corp.\n');
-{$IFDEF __WATCOMC__}
-  fprintf(stderr, 'Uses the PMODE/W DOS extender, v1.21\n');
-{$ENDIF}
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// Init
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-static void Init;
-begin
-{$IFDEF __NeXT__}
-  // Fix this to properly detect host byte order on NeXT systems
-  acs_BigEndianHost :=  NO;
-{$ELSE}
-  acs_BigEndianHost :=  NO;
-{$ENDIF}
-  acs_VerboseMode :=  YES;
-  acs_DebugMode :=  NO;
-  acs_DebugFile :=  NULL;
-  TK_Init;
-  SY_Init;
-  STR_Init;
-  ProcessArgs;
-  MS_Message(MSG_NORMAL, 'Host byte order: %s endian\n',
-    acs_BigEndianHost ? 'BIG' : 'LITTLE');
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// ProcessArgs
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-static void ProcessArgs;
-begin
-  i: integer;
-  count: integer;
-  char *text;
-  char option;
-
-  count :=  0;
-  for(i :=  1; i < ArgCount; i++)
-  begin
-    text :=  ArgVector[i];
-    if *text = '-' then
-    begin
-      text++;
-      if *text = 0 then
-      begin
-        DisplayUsage;
-       end;
-      option :=  toupper(*text++);
-      switch(option)
-      begin
-        'B':
-          if *text <> 0 then
-          begin
-            DisplayUsage;
-           end;
-          acs_BigEndianHost :=  YES;
-          break;
-        'L':
-          if *text <> 0 then
-          begin
-            DisplayUsage;
-           end;
-          acs_BigEndianHost :=  NO;
-          break;
-        'D':
-          acs_DebugMode :=  YES;
-          acs_VerboseMode :=  YES;
-          if *text <> 0 then
-          begin
-            OpenDebugFile(text);
-           end;
-          break;
-        default:
-          DisplayUsage;
-          break;
-       end;
-      continue;
-     end;
-    count++;
-    switch(count)
-    begin
-      1:
-        strcpy(acs_SourceFileName, text);
-        MS_SuggestFileExt(acs_SourceFileName, '.acs');
-        break;
-      2:
-        strcpy(ObjectFileName, text);
-        MS_SuggestFileExt(ObjectFileName, '.o');
-        break;
-      default:
-        DisplayUsage;
-        break;
-     end;
-   end;
-  if count = 0 then
-  begin
-    DisplayUsage;
-   end;
-  if count = 1 then
-  begin
-    strcpy(ObjectFileName, acs_SourceFileName);
-    MS_StripFileExt(ObjectFileName);
-    MS_SuggestFileExt(ObjectFileName, '.o');
-   end;
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// DisplayUsage
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-static void DisplayUsage;
-begin
-  puts('Usage: ACC [options] source[.acs] [object[.o]]\n');
-    puts('-b        Set host native byte order to big endian');
-  puts('-l        Set host native byte order to little endian');
-  puts('-d[file]  Output debugging information');
-  exit(1);
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// OpenDebugFile
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-static void OpenDebugFile(char *name)
-begin
-  if ((acs_DebugFile :=  fopen(name, 'w')) = NULL) then
-  begin
-    ERR_Exit(ERR_CANT_OPEN_DBGFILE, NO, 'File: \'%s\'.', name);
-   end;
-  end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// OptionExists
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-(*
-static boolean OptionExists(char *name)
-begin
-  i: integer;
-  char *arg;
-
-  for(i :=  1; i < ArgCount; i++)
-  begin
-    arg :=  ArgVector[i];
-    if *arg = '-' then
-    begin
-      arg++;
-      if (MS_StrCmp(name, arg) = 0) then
-      begin
-        return YES;
-       end;
-     end;
-   end;
-  return NO;
-  end;
-*)
+end.
