@@ -106,7 +106,7 @@ begin
   if pc_Address mod 4 <> 0 then
   begin  // Need to align
     pad := 0;
-    PC_Append(&pad, 4 - (pc_Address mod 4));
+    PC_Append(@pad, 4 - (pc_Address mod 4));
   end;
 end;
 
