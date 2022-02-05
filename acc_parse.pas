@@ -1,305 +1,225 @@
+//------------------------------------------------------------------------------
+//
+//  ACCP Compiler - ACS Compiler (Pascal)
+//  Based on ACC code by by Ben Gokey.
+//
+//  Copyright (C) 1995 by Raven Software
+//  Copyright (C) 2022 by Jim Valavanis
+//
+//  This program is free software; you can redistribute it and/or
+//  modify it under the terms of the GNU General Public License
+//  as published by the Free Software Foundation; either version 2
+//  of the License, or (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+//  02111-1307, USA.
+//
+//------------------------------------------------------------------------------
+//  Site  : https://sourceforge.net/projects/delphidoom/
+//------------------------------------------------------------------------------
 
-/(**************************************************************************
-/(**
-/(** parse.c
-/(**
-/(**************************************************************************
+{$I Doom32.inc}
 
-// HEADER FILES ------------------------------------------------------------
+unit acc_parse;
 
-#include 'common.h'
-#include 'parse.h'
-#include 'symbol.h'
-#include 'pcode.h'
-#include 'token.h'
-#include 'error.h'
-#include 'misc.h'
-#include 'strlist.h'
+const
+  MAX_STATEMENT_DEPTH = 128;
+  MAX_BREAK = 128;
+  MAX_CONTINUE = 128;
+  MAX_CASE = 128;
+  EXPR_STACK_DEPTH = 64;
 
-// MACROS ------------------------------------------------------------------
+type
+  statement_t = (
+    STMT_SCRIPT,
+    STMT_IF,
+    STMT_ELSE,
+    STMT_DO,
+    STMT_WHILEUNTIL,
+    STMT_SWITCH,
+    STMT_FOR
+  );
 
-#define MAX_STATEMENT_DEPTH 128
-#define MAX_BREAK 128
-#define MAX_CONTINUE 128
-#define MAX_CASE 128
-#define EXPR_STACK_DEPTH 64
+type
+  breakInfo_t = record
+    level: integer;
+    addressPtr: integer;
+  end;
 
-// TYPES -------------------------------------------------------------------
+type
+  continueInfo_t = record
+    level: integer;
+    addressPtr: integer;
+  end;
 
-typedef enum
-begin
-  STMT_SCRIPT,
-  STMT_IF,
-  STMT_ELSE,
-  STMT_DO,
-  STMT_WHILEUNTIL,
-  STMT_SWITCH,
-  STMT_FOR
-  end; statement_t;
+type
+  caseInfo_t = record
+    level: integer;
+    value: integer;
+    isDefault: boolean;
+    address: integer;
+  end;
 
-typedef struct
-begin
-  level: integer;
-  addressPtr: integer;
-  end; breakInfo_t;
-
-typedef struct
-begin
-  level: integer;
-  addressPtr: integer;
-  end; continueInfo_t;
-
-typedef struct
-begin
-  level: integer;
-  value: integer;
-  boolean isDefault;
-  address: integer;
-  end; caseInfo_t;
-
-// EXTERNAL FUNCTION PROTOTYPES --------------------------------------------
-
-// PUBLIC FUNCTION PROTOTYPES ----------------------------------------------
-
-// PRIVATE FUNCTION PROTOTYPES ---------------------------------------------
-
-static void Outside;
-static void OuterScript;
-static void OuterMapVar;
-static void OuterWorldVar;
-static void OuterSpecialDef;
-static void OuterDefine;
-static void OuterInclude;
-static boolean ProcessStatement(statement_t owner);
-static void LeadingCompoundStatement(statement_t owner);
-static void LeadingVarDeclare;
-static void LeadingLineSpecial;
-static void LeadingIdentifier;
-static void LeadingPrint;
-static void LeadingVarAssign(symbolNode_t *sym);
-static pcd_t GetAssignPCD(tokenType_t token, symbolType_t symbol);
-static void LeadingInternFunc(symbolNode_t *sym);
-static void LeadingSuspend;
-static void LeadingTerminate;
-static void LeadingRestart;
-static void LeadingIf;
-static void LeadingFor;
-static void LeadingWhileUntil;
-static void LeadingDo;
-static void LeadingSwitch;
-static void LeadingCase;
-static void LeadingDefault;
-static void LeadingBreak;
-static void LeadingContinue;
-static void PushCase(int value, boolean isDefault);
-static caseInfo_t *GetCaseInfo;
-static boolean DefaultInCurrent;
-static void PushBreak;
-static void WriteBreaks;
-static boolean BreakAncestor;
-static void PushContinue;
-static void WriteContinues(int address);
-static boolean ContinueAncestor;
-static void ProcessInternFunc(symbolNode_t *sym);
-static void EvalExpression;
-static void ExprLevA;
-static void ExprLevB;
-static void ExprLevC;
-static void ExprLevD;
-static void ExprLevE;
-static void ExprLevF;
-static void ExprLevG;
-static void ExprLevH;
-static void ExprLevI;
-static void ExprLevJ;
-static void ExprFactor;
-static void ConstExprFactor;
-static void SendExprCommand(pcd_t pcd);
-static void PushExStk(int value);
-static int PopExStk;
-static pcd_t TokenToPCD(token: integer);
-static pcd_t GetPushVarPCD(symbolType_t symType);
-static pcd_t GetIncDecPCD(token: integer, symbolType_t symbol);
-static int EvalConstExpression;
-static symbolNode_t *DemandSymbol(char *name);
-
-// EXTERNAL DATA DECLARATIONS ----------------------------------------------
-
-// PUBLIC DATA DEFINITIONS -------------------------------------------------
-
+var
   pa_ScriptCount: integer;
   pa_OpenScriptCount: integer;
   pa_MapVarCount: integer;
   pa_WorldVarCount: integer;
 
-// PRIVATE DATA DEFINITIONS ------------------------------------------------
+var
+  ScriptVarCount: integer;
+  StatementHistory: array[0..MAX_STATEMENT_DEPTH - 1] of statement_t;
+  StatementIndex: integer;
+  BreakInfo: array[0..MAX_BREAK - 1] of breakInfo_t;
+  BreakIndex: integer;
+  ContinueInfo: array[0..MAX_CONTINUE - 1] of continueInfo_t;
+  ContinueIndex: integer;
+  CaseInfo: array[0..MAX_CASE - 1] of caseInfo_t;
+  CaseIndex: integer;
+  StatementLevel: integer;
+  ExprStack: array[0..EXPR_STACK_DEPTH - 1] of integer;
+  ExprStackIndex: integer;
+  ConstantExpression: boolean;
 
-static int ScriptVarCount;
-static statement_t StatementHistory[MAX_STATEMENT_DEPTH];
-static int StatementIndex;
-static breakInfo_t BreakInfo[MAX_BREAK];
-static int BreakIndex;
-static continueInfo_t ContinueInfo[MAX_CONTINUE];
-static int ContinueIndex;
-static caseInfo_t CaseInfo[MAX_CASE];
-static int CaseIndex;
-static int StatementLevel;
-static int ExprStack[EXPR_STACK_DEPTH];
-static int ExprStackIndex;
-static boolean ConstantExpression;
+const
+  AdjustStmtLevel: array[statement_t] of integer = (
+    0,  // STMT_SCRIPT
+    0,  // STMT_IF
+    0,  // STMT_ELSE
+    1,  // STMT_DO
+    1,  // STMT_WHILEUNTIL
+    1,  // STMT_SWITCH
+    1   // STMT_FOR
+  );
 
-static int AdjustStmtLevel[] := 
-begin
-  0,    // STMT_SCRIPT
-  0,    // STMT_IF
-  0,    // STMT_ELSE
-  1,    // STMT_DO
-  1,    // STMT_WHILEUNTIL
-  1,    // STMT_SWITCH
-  1    // STMT_FOR
-  end;
+  IsBreakRoot: array[statement_t] of boolean = (
+    false,  // STMT_SCRIPT
+    false,  // STMT_IF
+    false,  // STMT_ELSE
+    true,   // STMT_DO
+    true,   // STMT_WHILEUNTIL
+    true,   // STMT_SWITCH
+    true    // STMT_FOR
+  );
 
-static boolean IsBreakRoot[] := 
-begin
-  NO,    // STMT_SCRIPT
-  NO,    // STMT_IF
-  NO,    // STMT_ELSE
-  YES,  // STMT_DO
-  YES,  // STMT_WHILEUNTIL
-  YES,  // STMT_SWITCH
-  YES    // STMT_FOR
-  end;
+  IsContinueRoot: array[statement_t] of boolean = (
+    false,  // STMT_SCRIPT
+    false,  // STMT_IF
+    false,  // STMT_ELSE
+    true,   // STMT_DO
+    true,   // STMT_WHILEUNTIL
+    false,  // STMT_SWITCH
+    true    // STMT_FOR
+  );
 
-static boolean IsContinueRoot[] := 
-begin
-  NO,    // STMT_SCRIPT
-  NO,    // STMT_IF
-  NO,    // STMT_ELSE
-  YES,  // STMT_DO
-  YES,  // STMT_WHILEUNTIL
-  NO,    // STMT_SWITCH
-  YES    // STMT_FOR
-  end;
+  LevFOps: array[0..2] of tokenType_t = (
+    TK_EQ,
+    TK_NE,
+    TK_NONE
+  );
 
-static tokenType_t LevFOps[] := 
-begin
-  TK_EQ,
-  TK_NE,
-  TK_NONE
-  end;
+  LevGOps: array[0..4] of tokenType_t = (
+    TK_LT,
+    TK_LE,
+    TK_GT,
+    TK_GE,
+    TK_NONE
+  );
 
-static tokenType_t LevGOps[] := 
-begin
-  TK_LT,
-  TK_LE,
-  TK_GT,
-  TK_GE,
-  TK_NONE
-  end;
+  LevHOps: array[0..2] of tokenType_t = (
+    TK_LSHIFT,
+    TK_RSHIFT,
+    TK_NONE
+  );
 
-static tokenType_t LevHOps[] := 
-begin
-  TK_LSHIFT,
-  TK_RSHIFT,
-  TK_NONE
-  end;
+  LevIOps: array[0..2] of tokenType_t = (
+    TK_PLUS,
+    TK_MINUS,
+    TK_NONE
+  );
 
-static tokenType_t LevIOps[] := 
-begin
-  TK_PLUS,
-  TK_MINUS,
-  TK_NONE
-  end;
+  LevJOps: array[0..3] of tokenType_t = (
+    TK_ASTERISK,
+    TK_SLASH,
+    TK_PERCENT,
+    TK_NONE
+  );
 
-static tokenType_t LevJOps[] := 
-begin
-  TK_ASTERISK,
-  TK_SLASH,
-  TK_PERCENT,
-  TK_NONE
-  end;
+  AssignOps: array[0..6] of tokenType_t = (
+    TK_ASSIGN,
+    TK_ADDASSIGN,
+    TK_SUBASSIGN,
+    TK_MULASSIGN,
+    TK_DIVASSIGN,
+    TK_MODASSIGN,
+    TK_NONE
+  );
 
-static tokenType_t AssignOps[] := 
-begin
-  TK_ASSIGN,
-  TK_ADDASSIGN,
-  TK_SUBASSIGN,
-  TK_MULASSIGN,
-  TK_DIVASSIGN,
-  TK_MODASSIGN,
-  TK_NONE
-  end;
-
-// CODE --------------------------------------------------------------------
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // PA_Parse
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure PA_Parse;
 begin
-  pa_ScriptCount :=  0;
-  pa_OpenScriptCount :=  0;
-  pa_MapVarCount :=  0;
-  pa_WorldVarCount :=  0;
+  pa_ScriptCount := 0;
+  pa_OpenScriptCount := 0;
+  pa_MapVarCount := 0;
+  pa_WorldVarCount := 0;
   TK_NextToken;
   Outside;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // Outside
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void Outside;
+procedure Outside;
+var
+  done: boolean;
 begin
-  boolean done;
-
-  done :=  NO;
-  while done = NO do
+  done := false;
+  while not done do
   begin
-    switch(tk_Token)
-    begin
+    case tk_Token of
       TK_EOF:
-        done :=  YES;
-        break;
+        done := true;
       TK_SCRIPT:
         OuterScript;
-        break;
-      TK_INT:
+      TK_INT,
       TK_STR:
         OuterMapVar;
-        break;
       TK_WORLD:
         OuterWorldVar;
-        break;
       TK_SPECIAL:
         OuterSpecialDef;
-        break;
       TK_NUMBERSIGN:
-        TK_NextToken;
-        switch(tk_Token)
         begin
-          TK_DEFINE:
-            OuterDefine;
-            break;
-          TK_INCLUDE:
-            OuterInclude;
-            break;
-          default:
-            ERR_Exit(ERR_INVALID_DIRECTIVE, YES, NULL);
-            break;
-         end;
-        break;
-      default:
-        ERR_Exit(ERR_INVALID_DECLARATOR, YES, NULL);
-        break;
+          TK_NextToken;
+          case tk_Token of
+            TK_DEFINE:
+              OuterDefine;
+            TK_INCLUDE:
+              OuterInclude;
+          else
+            ERR_Exit(ERR_INVALID_DIRECTIVE, True, '');
+          end;
         end;
-   end;
+    else
+      ERR_Exit(ERR_INVALID_DECLARATOR, True, '');
+    end;
   end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -307,71 +227,62 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void OuterScript;
-begin
+procedure OuterScript;
+var
   scriptNumber: integer;
-  symbolNode_t *sym;
-
-  MS_Message(MSG_DEBUG, '---- OuterScript ----\n');
-  BreakIndex :=  0;
-  CaseIndex :=  0;
-  StatementLevel :=  0;
-  ScriptVarCount :=  0;
+  sym: PsymbolNode_t;
+begin
+  MS_Message(MSG_DEBUG, '---- OuterScript ----'#13#10);
+  BreakIndex := 0;
+  CaseIndex := 0;
+  StatementLevel := 0;
+  ScriptVarCount := 0;
   SY_FreeLocals;
   TK_NextToken;
-  scriptNumber :=  EvalConstExpression;
-  MS_Message(MSG_DEBUG, 'Script number: %d\n', scriptNumber);
+  scriptNumber := EvalConstExpression;
+  MS_Message(MSG_DEBUG, 'Script number: %d'#13#10, [scriptNumber]);
   if tk_Token = TK_LPAREN then
   begin
     if TK_NextToken = TK_VOID then
-    begin
-      TK_NextTokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
-     end;
+      TK_NextTokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN)
     else
     begin
       TK_Undo;
-      do
-      begin
+      repeat
         TK_NextTokenMustBe(TK_INT, ERR_BAD_VAR_TYPE);
         TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-        if (SY_FindLocal(tk_Str) <> NULL) then
-         begin  // Redefined
-          ERR_Exit(ERR_REDEFINED_IDENTIFIER, YES,
-            'Identifier: %s', tk_Str);
-         end;
-        sym :=  SY_InsertLocal(tk_Str, SY_SCRIPTVAR);
-        sym.info.var.index :=  ScriptVarCount;
-        ScriptVarCount++;
+        if SY_FindLocal(tk_Str) <> nil then
+        begin  // Redefined
+          ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
+            'Identifier: %s', [tk_Str]);
+        end;
+        sym := SY_InsertLocal(tk_Str, SY_SCRIPTVAR);
+        sym.info.svar.index := ScriptVarCount;
+        Inc(ScriptVarCount);
         TK_NextToken;
-       end; while(tk_Token = TK_COMMA);
+      until tk_Token <> TK_COMMA;
       TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
       if ScriptVarCount > 3 then
-      begin
-        ERR_Exit(ERR_TOO_MANY_SCRIPT_ARGS, YES, NULL);
-       end;
-     end;
-    MS_Message(MSG_DEBUG, 'Script type: CLOSED (%d %s)\n',
-      ScriptVarCount, ScriptVarCount = 1 ? 'arg' : 'args');
+        ERR_Exit(ERR_TOO_MANY_SCRIPT_ARGS, True, '');
+    end;
+    MS_Message(MSG_DEBUG, 'Script type: CLOSED (%d %s)'#13#10,
+      ScriptVarCount, decide(ScriptVarCount = 1, 'arg', 'args'));
   end
   else if tk_Token = TK_OPEN then
   begin
-    MS_Message(MSG_DEBUG, 'Script type: OPEN\n');
+    MS_Message(MSG_DEBUG, 'Script type: OPEN'#13#10);
     scriptNumber := scriptNumber + OPEN_SCRIPTS_BASE;
-    pa_OpenScriptCount++;
-   end;
+    Inc(pa_OpenScriptCount);
+  end
   else
-  begin
-    ERR_Exit(ERR_BAD_SCRIPT_DECL, YES, NULL);
-   end;
+    ERR_Exit(ERR_BAD_SCRIPT_DECL, true, '');
   PC_AddScript(scriptNumber, ScriptVarCount);
   TK_NextToken;
-  if (ProcessStatement(STMT_SCRIPT) = NO) then
-  begin
-    ERR_Exit(ERR_INVALID_STATEMENT, YES, NULL);
-   end;
+  if not ProcessStatement(STMT_SCRIPT) then
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
   PC_AppendCmd(PCD_TERMINATE);
-  pa_ScriptCount++;
-  end;
+  inc(pa_ScriptCount);
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -379,71 +290,65 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void OuterMapVar;
+procedure OuterMapVar;
+var
+  sym: PsymbolNode_t;
 begin
-  symbolNode_t *sym;
-
-  MS_Message(MSG_DEBUG, '---- OuterMapVar ----\n');
-  do
-  begin
+  MS_Message(MSG_DEBUG, '---- OuterMapVar ----'#13#10);
+  repeat
     if pa_MapVarCount = MAX_MAP_VARIABLES then
-    begin
-      ERR_Exit(ERR_TOO_MANY_MAP_VARS, YES, NULL);
-     end;
+      ERR_Exit(ERR_TOO_MANY_MAP_VARS, True, '');
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-    if (SY_FindGlobal(tk_Str) <> NULL) then
-     begin  // Redefined
-      ERR_Exit(ERR_REDEFINED_IDENTIFIER, YES,
-        'Identifier: %s', tk_Str);
-     end;
-    sym :=  SY_InsertGlobal(tk_Str, SY_MAPVAR);
-    sym.info.var.index :=  pa_MapVarCount;
-    pa_MapVarCount++;
+    if SY_FindGlobal(tk_Str) <> nil then
+    begin  // Redefined
+      ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
+        'Identifier: %s', [tk_Str]);
+    end;
+    sym := SY_InsertGlobal(tk_Str, SY_MAPVAR);
+    sym.info.svar.index := pa_MapVarCount;
+    Inc(pa_MapVarCount);
     TK_NextToken;
-   end; while(tk_Token = TK_COMMA);
+  until tk_Token <> TK_COMMA;
   TK_TokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   TK_NextToken;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // OuterWorldVar
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void OuterWorldVar;
-begin
+procedure OuterWorldVar;
+var
   index: integer;
-  symbolNode_t *sym;
-
-  MS_Message(MSG_DEBUG, '---- OuterWorldVar ----\n');
+  sym: PsymbolNode_t;
+begin
+  MS_Message(MSG_DEBUG, '---- OuterWorldVar ----'#13#10);
   if TK_NextToken <> TK_INT then
-  begin
     TK_TokenMustBe(TK_STR, ERR_BAD_VAR_TYPE);
-   end;
-  do
-  begin
+  repeat
     TK_NextTokenMustBe(TK_NUMBER, ERR_MISSING_WVAR_INDEX);
     if tk_Number >= MAX_WORLD_VARIABLES then
     begin
-      ERR_Exit(ERR_BAD_WVAR_INDEX, YES, NULL);
-     end;
-    index :=  tk_Number;
+      ERR_Exit(ERR_BAD_WVAR_INDEX, True, '');
+    end;
+    index := tk_Number;
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_WVAR_COLON);
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-    if (SY_FindGlobal(tk_Str) <> NULL) then
-     begin  // Redefined
-      ERR_Exit(ERR_REDEFINED_IDENTIFIER, YES,
-        'Identifier: %s', tk_Str);
-     end;
-    sym :=  SY_InsertGlobal(tk_Str, SY_WORLDVAR);
-    sym.info.var.index :=  index;
+    if SY_FindGlobal(tk_Str) <> nil then
+    begin  // Redefined
+      ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
+        'Identifier: %s', [tk_Str]);
+    end;
+    sym := SY_InsertGlobal(tk_Str, SY_WORLDVAR);
+    sym.info.svar.index := index;
     TK_NextToken;
-    pa_WorldVarCount++;
-   end; while(tk_Token = TK_COMMA);
+    inc(pa_WorldVarCount);
+  until tk_Token <> TK_COMMA;
   TK_TokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   TK_NextToken;
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -451,59 +356,58 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void OuterSpecialDef;
-begin
+procedure OuterSpecialDef;
+var
   special: integer;
-  symbolNode_t *sym;
-
-  MS_Message(MSG_DEBUG, '---- OuterSpecialDef ----\n');
-  do
-  begin
+  sym: PsymbolNode_t;
+begin
+  MS_Message(MSG_DEBUG, '---- OuterSpecialDef ----'#13#10);
+  repeat
     TK_NextTokenMustBe(TK_NUMBER, ERR_MISSING_SPEC_VAL);
-    special :=  tk_Number;
+    special := tk_Number;
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_SPEC_COLON);
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-    if (SY_FindGlobal(tk_Str) <> NULL) then
-     begin  // Redefined
-      ERR_Exit(ERR_REDEFINED_IDENTIFIER, YES,
-        'Identifier: %s', tk_Str);
-     end;
-    sym :=  SY_InsertGlobal(tk_Str, SY_SPECIAL);
+    if SY_FindGlobal(tk_Str) <> nil then
+    begin  // Redefined
+      ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
+        'Identifier: %s', [tk_Str]);
+    end;
+    sym := SY_InsertGlobal(tk_Str, SY_SPECIAL);
     TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
     TK_NextTokenMustBe(TK_NUMBER, ERR_MISSING_SPEC_ARGC);
-    sym.info.special.value :=  special;
-    sym.info.special.argCount :=  tk_Number;
+    sym.info.special.value := special;
+    sym.info.special.argCount := tk_Number;
     TK_NextTokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
     TK_NextToken;
-   end; while(tk_Token = TK_COMMA);
+  until tk_Token <> TK_COMMA;
   TK_TokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   TK_NextToken;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // OuterDefine
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void OuterDefine;
-begin
+procedure OuterDefine;
+var
   value: integer;
-  symbolNode_t *sym;
-
-  MS_Message(MSG_DEBUG, '---- OuterDefine ----\n');
+  sym: PsymbolNode_t;
+begin
+  MS_Message(MSG_DEBUG, '---- OuterDefine ----'#13#10);
   TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-  if (SY_FindGlobal(tk_Str) <> NULL) then
-   begin  // Redefined
-    ERR_Exit(ERR_REDEFINED_IDENTIFIER, YES,
-      'Identifier: %s', tk_Str);
-   end;
-  sym :=  SY_InsertGlobal(tk_Str, SY_CONSTANT);
-  TK_NextToken;
-  value :=  EvalConstExpression;
-  MS_Message(MSG_DEBUG, 'Constant value: %d\n', value);
-  sym.info.constant.value :=  value;
+  if SY_FindGlobal(tk_Str) <> nil then
+  begin  // Redefined
+    ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
+      'Identifier: %s', [tk_Str]);
   end;
+  sym := SY_InsertGlobal(tk_Str, SY_CONSTANT);
+  TK_NextToken;
+  value := EvalConstExpression;
+  MS_Message(MSG_DEBUG, 'Constant value: %d'#13#10, [value]);
+  sym.info.constant.value := value;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -511,114 +415,93 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void OuterInclude;
+procedure OuterInclude;
 begin
-  MS_Message(MSG_DEBUG, '---- OuterInclude ----\n');
+  MS_Message(MSG_DEBUG, '---- OuterInclude ----'#13#10);
   TK_NextTokenMustBe(TK_STRING, ERR_STRING_LIT_NOT_FOUND);
   TK_Include(tk_Str);
   TK_NextToken;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // ProcessStatement
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static boolean ProcessStatement(statement_t owner)
+function ProcessStatement(const owner: statement_t): boolean;
 begin
   if StatementIndex = MAX_STATEMENT_DEPTH then
-  begin
-    ERR_Exit(ERR_STATEMENT_OVERFLOW, YES, NULL);
-   end;
-  StatementHistory[StatementIndex++] :=  owner;
-  switch(tk_Token)
-  begin
-    TK_INT:
+    ERR_Exit(ERR_STATEMENT_OVERFLOW, True, '');
+
+  StatementHistory[StatementIndex] := owner;
+  Inc(StatementIndex);
+  case tk_Token of
+    TK_INT,
     TK_STR:
       LeadingVarDeclare;
-      break;
     TK_LINESPECIAL:
       LeadingLineSpecial;
-      break;
     TK_RESTART:
       LeadingRestart;
-      break;
     TK_SUSPEND:
       LeadingSuspend;
-      break;
     TK_TERMINATE:
       LeadingTerminate;
-      break;
     TK_IDENTIFIER:
       LeadingIdentifier;
-      break;
-    TK_PRINT:
+    TK_PRINT,
     TK_PRINTBOLD:
       LeadingPrint;
-      break;
     TK_IF:
       LeadingIf;
-      break;
     TK_FOR:
       LeadingFor;
-      break;
-    TK_WHILE:
+    TK_WHILE,
     TK_UNTIL:
       LeadingWhileUntil;
-      break;
     TK_DO:
       LeadingDo;
-      break;
     TK_SWITCH:
       LeadingSwitch;
-      break;
     TK_CASE:
-      if owner <> STMT_SWITCH then
       begin
-        ERR_Exit(ERR_CASE_NOT_IN_SWITCH, YES, NULL);
-       end;
-      LeadingCase;
-      break;
+        if owner <> STMT_SWITCH then
+          ERR_Exit(ERR_CASE_NOT_IN_SWITCH, True, '');
+        LeadingCase;
+      end;
     TK_DEFAULT:
-      if owner <> STMT_SWITCH then
       begin
-        ERR_Exit(ERR_DEFAULT_NOT_IN_SWITCH, YES, NULL);
-       end;
-      if DefaultInCurrent = YES then
-      begin
-        ERR_Exit(ERR_MULTIPLE_DEFAULT, YES, NULL);
-       end;
-      LeadingDefault;
-      break;
+        if owner <> STMT_SWITCH then
+          ERR_Exit(ERR_DEFAULT_NOT_IN_SWITCH, True, '');
+        if DefaultInCurrent then
+          ERR_Exit(ERR_MULTIPLE_DEFAULT, True, '');
+        LeadingDefault;
+      end;
     TK_BREAK:
-      if BreakAncestor = NO then
       begin
-        ERR_Exit(ERR_MISPLACED_BREAK, YES, NULL);
-       end;
-      LeadingBreak;
-      break;
+        if not BreakAncestor then
+          ERR_Exit(ERR_MISPLACED_BREAK, True, '');
+        LeadingBreak;
+      end;
     TK_CONTINUE:
-      if ContinueAncestor = NO then
       begin
-        ERR_Exit(ERR_MISPLACED_CONTINUE, YES, NULL);
-       end;
-      LeadingContinue;
-      break;
+        if not ContinueAncestor then
+          ERR_Exit(ERR_MISPLACED_CONTINUE, True, '');
+        LeadingContinue;
+      end;
     TK_LBRACE:
       LeadingCompoundStatement(owner);
-      break;
     TK_SEMICOLON:
       TK_NextToken;
-      break;
-    default:
-      StatementIndex--;
-      return NO;
-      break;
-   end;
-  StatementIndex--;
-  return YES;
+  else
+    dec(StatementIndex);
+    result := False;
+    exit;
   end;
+  dec(StatementIndex);
+  result := True;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -626,15 +509,15 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingCompoundStatement(statement_t owner)
+procedure LeadingCompoundStatement(const owner: statement_t);
 begin
   StatementLevel := StatementLevel + AdjustStmtLevel[owner];
   TK_NextToken; // Eat the TK_LBRACE
-  do ; while(ProcessStatement(owner) = YES);
+  repeat until not ProcessStatement(owner);
   TK_TokenMustBe(TK_RBRACE, ERR_INVALID_STATEMENT);
   TK_NextToken;
   StatementLevel := StatementLevel - AdjustStmtLevel[owner];
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -642,31 +525,28 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingVarDeclare;
+procedure LeadingVarDeclare;
+var
+  sym: PsymbolNode_t;
 begin
-  symbolNode_t *sym;
-
-  MS_Message(MSG_DEBUG, '---- LeadingVarDeclare ----\n');
-  do
-  begin
+  MS_Message(MSG_DEBUG, '---- LeadingVarDeclare ----'#13#10);
+  repeat
     if ScriptVarCount = MAX_SCRIPT_VARIABLES then
-    begin
-      ERR_Exit(ERR_TOO_MANY_SCRIPT_VARS, YES, NULL);
-     end;
+      ERR_Exit(ERR_TOO_MANY_SCRIPT_VARS, True, '');
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-    if (SY_FindLocal(tk_Str) <> NULL) then
-     begin  // Redefined
-      ERR_Exit(ERR_REDEFINED_IDENTIFIER, YES,
-        'Identifier: %s', tk_Str);
-     end;
-    sym :=  SY_InsertLocal(tk_Str, SY_SCRIPTVAR);
-    sym.info.var.index :=  ScriptVarCount;
-    ScriptVarCount++;
+    if SY_FindLocal(tk_Str) <> nil then
+    begin  // Redefined
+      ERR_Exit(ERR_REDEFINED_IDENTIFIER, True,
+        'Identifier: %s', [tk_Str]);
+    end;
+    sym := SY_InsertLocal(tk_Str, SY_SCRIPTVAR);
+    sym.info.svar.index := ScriptVarCount;
+    Inc(ScriptVarCount);
     TK_NextToken;
-   end; while(tk_Token = TK_COMMA);
+   until tk_Token <> TK_COMMA;
   TK_TokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   TK_NextToken;
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -674,60 +554,51 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingLineSpecial;
-begin
+procedure LeadingLineSpecial;
+var
   i: integer;
   argCount: integer;
   specialValue: integer;
-  boolean direct;
-
-  MS_Message(MSG_DEBUG, '---- LeadingLineSpecial ----\n');
-  argCount :=  tk_SpecialArgCount;
-  specialValue :=  tk_SpecialValue;
+  direct; boolean;
+begin
+  MS_Message(MSG_DEBUG, '---- LeadingLineSpecial ----'#13#10);
+  argCount := tk_SpecialArgCount;
+  specialValue := tk_SpecialValue;
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   if TK_NextToken = TK_CONST then
   begin
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_COLON);
-    PC_AppendCmd(PCD_LSPEC1DIRECT+(argCount-1));
+    PC_AppendCmd(PCD_LSPEC1DIRECT + (argCount - 1));
     PC_AppendLong(specialValue);
-    direct :=  YES;
-   end;
+    direct := True;
+  end
   else
   begin
     TK_Undo;
-    direct :=  NO;
+    direct := False;
    end;
-  i :=  0;
-  do
-  begin
+  i := 0;
+  repeat
     if i = argCount then
-    begin
-      ERR_Exit(ERR_BAD_LSPEC_ARG_COUNT, YES, NULL);
-     end;
+      ERR_Exit(ERR_BAD_LSPEC_ARG_COUNT, True, '');
     TK_NextToken;
-    if direct = YES then
-    begin
-      PC_AppendLong(EvalConstExpression);
-     end;
+    if direct then
+      PC_AppendLong(EvalConstExpression)
     else
-    begin
       EvalExpression;
-     end;
-    i++;
-   end; while(tk_Token = TK_COMMA);
+    inc(i);
+  until tk_Token <> TK_COMMA;
   if i <> argCount then
-  begin
-    ERR_Exit(ERR_BAD_LSPEC_ARG_COUNT, YES, NULL);
-   end;
+    ERR_Exit(ERR_BAD_LSPEC_ARG_COUNT, True, nil);
   TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
-  if direct = NO then
+  if not direct then
   begin
-    PC_AppendCmd(PCD_LSPEC1+(argCount-1));
+    PC_AppendCmd(PCD_LSPEC1 + (argCount - 1));
     PC_AppendLong(specialValue);
-   end;
-  TK_NextToken;
   end;
+  TK_NextToken;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -735,25 +606,20 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingIdentifier;
+procedure LeadingIdentifier;
+var
+  sym: PsymbolNode_t;
 begin
-  symbolNode_t *sym;
-
-  sym :=  DemandSymbol(tk_Str);
-  switch(sym.type)
-  begin
-    SY_SCRIPTVAR:
-    SY_MAPVAR:
+  sym := DemandSymbol(tk_Str);
+  case sym.typ of
+    SY_SCRIPTVAR,
+    SY_MAPVAR,
     SY_WORLDVAR:
       LeadingVarAssign(sym);
-      break;
     SY_INTERNFUNC:
       LeadingInternFunc(sym);
-      break;
-    default:
-      break;
-   end;
   end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -761,16 +627,14 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingInternFunc(symbolNode_t *sym)
+procedure LeadingInternFunc(const sym: PsymbolNode_t);
 begin
   ProcessInternFunc(sym);
-  if sym.info.internFunc.hasReturnValue = YES then
-  begin
+  if sym.info.internFunc.hasReturnValue then
     PC_AppendCmd(PCD_DROP);
-   end;
   TK_TokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   TK_NextToken;
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -778,63 +642,48 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void ProcessInternFunc(symbolNode_t *sym)
-begin
+procedure ProcessInternFunc(symbolNode_t *sym)
+var
   i: integer;
   argCount: integer;
-  boolean direct;
-
-  MS_Message(MSG_DEBUG, '---- ProcessInternFunc ----\n');
-  argCount :=  sym.info.internFunc.argCount;
+  direct: boolean;
+begin
+  MS_Message(MSG_DEBUG, '---- ProcessInternFunc ----'#13#10);
+  argCount := sym.info.internFunc.argCount;
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   if TK_NextToken = TK_CONST then
   begin
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_COLON);
     if sym.info.internFunc.directCommand = PCD_NOP then
-    begin
-      ERR_Exit(ERR_NO_DIRECT_VER, YES, NULL);
-     end;
+      ERR_Exit(ERR_NO_DIRECT_VER, True, '');
     PC_AppendCmd(sym.info.internFunc.directCommand);
-    direct :=  YES;
+    direct := True;
     TK_NextToken;
-   end;
+  end
   else
-  begin
-    direct :=  NO;
-   end;
+    direct := False;
   i :=  0;
   if argCount > 0 then
   begin
     TK_Undo; // Adjust for first expression
-    do
-    begin
+    repeat
       if i = argCount then
-      begin
-        ERR_Exit(ERR_BAD_ARG_COUNT, YES, NULL);
-       end;
+        ERR_Exit(ERR_BAD_ARG_COUNT, True, '');
       TK_NextToken;
-      if direct = YES then
-      begin
-        PC_AppendLong(EvalConstExpression);
-       end;
+      if direct then
+        PC_AppendLong(EvalConstExpression)
       else
-      begin
         EvalExpression;
-       end;
-      i++;
-     end; while(tk_Token = TK_COMMA);
-   end;
-  if i <> argCount then
-  begin
-    ERR_Exit(ERR_BAD_ARG_COUNT, YES, NULL);
-   end;
-  TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
-  if direct = NO then
-  begin
-    PC_AppendCmd(sym.info.internFunc.stackCommand);
-   end;
-  TK_NextToken;
+      Inc(i);
+    until tk_Token <> TK_COMMA;
   end;
+  if i <> argCount then
+    ERR_Exit(ERR_BAD_ARG_COUNT, True, '');
+  TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
+  if not direct then
+    PC_AppendCmd(sym.info.internFunc.stackCommand);
+  TK_NextToken;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -842,49 +691,39 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingPrint;
+procedure LeadingPrint;
+var
+  printCmd: Integer;
+  stmtToken: tokenType_t;
 begin
-  pcd_t printCmd;
-  tokenType_t stmtToken;
-
-  MS_Message(MSG_DEBUG, '---- LeadingPrint ----\n');
-  stmtToken :=  tk_Token; // Will be TK_PRINT or TK_PRINTBOLD
+  MS_Message(MSG_DEBUG, '---- LeadingPrint ----'#13#10);
+  stmtToken := tk_Token; // Will be TK_PRINT or TK_PRINTBOLD
   PC_AppendCmd(PCD_BEGINPRINT);
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
-  do
-  begin
-    switch(TK_NextCharacter)
-    begin
+  repeat
+    case TK_NextCharacter of
       's': // string
-        printCmd :=  PCD_PRINTSTRING;
-        break;
-      'i': // integer
+        printCmd := PCD_PRINTSTRING;
+      'i', // integer
       'd': // decimal
-        printCmd :=  PCD_PRINTNUMBER;
-        break;
+        printCmd := PCD_PRINTNUMBER;
       'c': // character
-        printCmd :=  PCD_PRINTCHARACTER;
-        break;
-      default:
-        ERR_Exit(ERR_UNKNOWN_PRTYPE, YES, NULL);
-        break;
-     end;
+        printCmd := PCD_PRINTCHARACTER;
+    else
+      ERR_Exit(ERR_UNKNOWN_PRTYPE, True, '');
+    end;
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_COLON);
     TK_NextToken;
     EvalExpression;
     PC_AppendCmd(printCmd);
-   end; while(tk_Token = TK_COMMA);
+  until tk_Token <> TK_COMMA;
   TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
   if stmtToken = TK_PRINT then
-  begin
-    PC_AppendCmd(PCD_ENDPRINT);
-   end;
+    PC_AppendCmd(PCD_ENDPRINT)
   else
-  begin
-    PC_AppendCmd(PCD_ENDPRINTBOLD);
-   end;
+    PC_AppendCmd(PCD_ENDPRINTBOLD)
   TK_NextToken;
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -892,42 +731,36 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingIf;
-begin
+procedure LeadingIf;
+var
   jumpAddrPtr1: integer;
   jumpAddrPtr2: integer;
-
-  MS_Message(MSG_DEBUG, '---- LeadingIf ----\n');
+begin
+  MS_Message(MSG_DEBUG, '---- LeadingIf ----'#13#10);
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   TK_NextToken;
   EvalExpression;
   TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
   PC_AppendCmd(PCD_IFNOTGOTO);
-  jumpAddrPtr1 :=  pc_Address;
+  jumpAddrPtr1 := pc_Address;
   PC_SkipLong;
   TK_NextToken;
-  if (ProcessStatement(STMT_IF) = NO) then
-  begin
-    ERR_Exit(ERR_INVALID_STATEMENT, YES, NULL);
-   end;
+  if not ProcessStatement(STMT_IF) then
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
   if tk_Token = TK_ELSE then
   begin
     PC_AppendCmd(PCD_GOTO);
-    jumpAddrPtr2 :=  pc_Address;
+    jumpAddrPtr2 := pc_Address;
     PC_SkipLong;
     PC_WriteLong(pc_Address, jumpAddrPtr1);
     TK_NextToken;
-    if (ProcessStatement(STMT_ELSE) = NO) then
-    begin
-      ERR_Exit(ERR_INVALID_STATEMENT, YES, NULL);
-     end;
+    if not ProcessStatement(STMT_ELSE) then
+      ERR_Exit(ERR_INVALID_STATEMENT, True, '');
     PC_WriteLong(pc_Address, jumpAddrPtr2);
-   end;
+  end
   else
-  begin
     PC_WriteLong(pc_Address, jumpAddrPtr1);
-   end;
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -935,37 +768,38 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingFor;
+procedure LeadingFor;
 begin
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // LeadingWhileUntil
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static void LeadingWhileUntil;
-begin
-  tokenType_t stmtToken;
+procedure LeadingWhileUntil;
+var
+  stmtToken: tokenType_t;
   topAddr: integer;
   outAddrPtr: integer;
-
-  MS_Message(MSG_DEBUG, '---- LeadingWhileUntil ----\n');
-  stmtToken :=  tk_Token;
-  topAddr :=  pc_Address;
+begin
+  MS_Message(MSG_DEBUG, '---- LeadingWhileUntil ----'#13#10);
+  stmtToken := tk_Token;
+  topAddr := pc_Address;
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   TK_NextToken;
   EvalExpression;
   TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
-  PC_AppendCmd(stmtToken = TK_WHILE ? PCD_IFNOTGOTO : PCD_IFGOTO);
-  outAddrPtr :=  pc_Address;
+  if stmtToken = TK_WHILE then
+    PC_AppendCmd(PCD_IFNOTGOTO)
+  else
+    PC_AppendCmd(PCD_IFGOTO);
+  outAddrPtr := pc_Address;
   PC_SkipLong;
   TK_NextToken;
-  if (ProcessStatement(STMT_WHILEUNTIL) = NO) then
-  begin
-    ERR_Exit(ERR_INVALID_STATEMENT, YES, NULL);
-   end;
+  if not ProcessStatement(STMT_WHILEUNTIL) then
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
   PC_AppendCmd(PCD_GOTO);
   PC_AppendLong(topAddr);
 
@@ -973,59 +807,58 @@ begin
 
   WriteContinues(topAddr);
   WriteBreaks;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // LeadingDo
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static void LeadingDo;
-begin
+procedure LeadingDo;
+var
   topAddr: integer;
   exprAddr: integer;
-  tokenType_t stmtToken;
-
-  MS_Message(MSG_DEBUG, '---- LeadingDo ----\n');
-  topAddr :=  pc_Address;
+  stmtToken: tokenType_t;
+begin
+  MS_Message(MSG_DEBUG, '---- LeadingDo ----'#13#10);
+  topAddr := pc_Address;
   TK_NextToken;
-  if (ProcessStatement(STMT_DO) = NO) then
-  begin
-    ERR_Exit(ERR_INVALID_STATEMENT, YES, NULL);
-   end;
+  if not ProcessStatement(STMT_DO) then
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
   if (tk_Token <> TK_WHILE) and (tk_Token <> TK_UNTIL) then
-  begin
-    ERR_Exit(ERR_BAD_DO_STATEMENT, YES, NULL);
-   end;
-  stmtToken :=  tk_Token;
+    ERR_Exit(ERR_BAD_DO_STATEMENT, True, '');
+  stmtToken := tk_Token;
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
-  exprAddr :=  pc_Address;
+  exprAddr := pc_Address;
   TK_NextToken;
   EvalExpression;
   TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
-  PC_AppendCmd(stmtToken = TK_WHILE ? PCD_IFGOTO : PCD_IFNOTGOTO);
+  if stmtToken = TK_WHILE then
+    PC_AppendCmd(PCD_IFGOTO)
+  else
+    PC_AppendCmd(PCD_IFNOTGOTO);
   PC_AppendLong(topAddr);
   WriteContinues(exprAddr);
   WriteBreaks;
   TK_NextToken;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // LeadingSwitch
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingSwitch;
-begin
+procedure LeadingSwitch;
+var
   switcherAddrPtr: integer;
   outAddrPtr: integer;
-  caseInfo_t *cInfo;
+  cInfo: PcaseInfo_t;
   defaultAddress: integer;
-
-  MS_Message(MSG_DEBUG, '---- LeadingSwitch ----\n');
+begin
+  MS_Message(MSG_DEBUG, '---- LeadingSwitch ----'#13#10);
 
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   TK_NextToken;
@@ -1033,32 +866,33 @@ begin
   TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
 
   PC_AppendCmd(PCD_GOTO);
-  switcherAddrPtr :=  pc_Address;
+  switcherAddrPtr := pc_Address;
   PC_SkipLong;
 
   TK_NextToken;
-  if (ProcessStatement(STMT_SWITCH) = NO) then
-  begin
-    ERR_Exit(ERR_INVALID_STATEMENT, YES, NULL);
-   end;
+  if not ProcessStatement(STMT_SWITCH) then
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
 
   PC_AppendCmd(PCD_GOTO);
-  outAddrPtr :=  pc_Address;
+  outAddrPtr := pc_Address;
   PC_SkipLong;
 
   PC_WriteLong(pc_Address, switcherAddrPtr);
-  defaultAddress :=  0;
-  while ((cInfo :=  GetCaseInfo) <> NULL) do
+  defaultAddress := 0;
+  while True do
   begin
-    if cInfo.isDefault = YES then
+    cInfo := GetCaseInfo;
+    if cInfo = nil then
+      Break;
+    if cInfo.isDefault then
     begin
-      defaultAddress :=  cInfo.address;
+      defaultAddress := cInfo.address;
       continue;
-     end;
+    end;
     PC_AppendCmd(PCD_CASEGOTO);
     PC_AppendLong(cInfo.value);
     PC_AppendLong(cInfo.address);
-   end;
+  end;
   PC_AppendCmd(PCD_DROP);
 
   if defaultAddress <> 0 then
@@ -1070,7 +904,7 @@ begin
   PC_WriteLong(pc_Address, outAddrPtr);
 
   WriteBreaks;
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1078,47 +912,45 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingCase;
+procedure LeadingCase;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingCase ----\n');
+  MS_Message(MSG_DEBUG, '---- LeadingCase ----'#13#10);
   TK_NextToken;
-  PushCase(EvalConstExpression, NO);
+  PushCase(EvalConstExpression, False);
   TK_TokenMustBe(TK_COLON, ERR_MISSING_COLON);
   TK_NextToken;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // LeadingDefault
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static void LeadingDefault;
+procedure LeadingDefault;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingDefault ----\n');
+  MS_Message(MSG_DEBUG, '---- LeadingDefault ----'#13#10);
   TK_NextTokenMustBe(TK_COLON, ERR_MISSING_COLON);
-  PushCase(0, YES);
+  PushCase(0, True);
   TK_NextToken;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // PushCase
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static void PushCase(int value, boolean isDefault)
+procedure PushCase(const value: integer; const isDefault: boolean);
 begin
   if CaseIndex = MAX_CASE then
-  begin
-    ERR_Exit(ERR_CASE_OVERFLOW, YES, NULL);
-   end;
-  CaseInfo[CaseIndex].level :=  StatementLevel;
-  CaseInfo[CaseIndex].value :=  value;
-  CaseInfo[CaseIndex].isDefault :=  isDefault;
-  CaseInfo[CaseIndex].address :=  pc_Address;
-  CaseIndex++;
-  end;
+    ERR_Exit(ERR_CASE_OVERFLOW, True, '');
+  CaseInfo[CaseIndex].level := StatementLevel;
+  CaseInfo[CaseIndex].value := value;
+  CaseInfo[CaseIndex].isDefault := isDefault;
+  CaseInfo[CaseIndex].address := pc_Address;
+  Inc(CaseIndex);
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1126,90 +958,90 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static caseInfo_t *GetCaseInfo;
+function GetCaseInfo: PcaseInfo_t;
 begin
   if CaseIndex = 0 then
   begin
-    return NULL;
-   end;
-  if CaseInfo[CaseIndex-1].level > StatementLevel then
-  begin
-    return) and (CaseInfo[--CaseIndex];
-   end;
-  return NULL;
+    result := nil;
+    exit;
   end;
+  if CaseInfo[CaseIndex - 1].level > StatementLevel then
+  begin
+    Dec(CaseIndex);
+    result := @CaseInfo[CaseIndex];
+    exit;
+  end;
+  result := nil;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // DefaultInCurrent
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static boolean DefaultInCurrent;
-begin
+function DefaultInCurrent: boolean;
+var
   i: integer;
-
-  for(i :=  0; i < CaseIndex; i++)
+begin
+  for i := 0 to CaseIndex - 1 do
   begin
-    if(CaseInfo[i].isDefault = YES
-     ) and (CaseInfo[i].level = StatementLevel)
-     begin
-      return YES;
-     end;
-   end;
-  return NO;
+    if CaseInfo[i].isDefault and (CaseInfo[i].level = StatementLevel) then
+    begin
+      result := true;
+      exit;
+    end;
   end;
+  result := false;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // LeadingBreak
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingBreak;
+procedure LeadingBreak;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingBreak ----\n');
+  MS_Message(MSG_DEBUG, '---- LeadingBreak ----'#13#10);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_GOTO);
   PushBreak;
   PC_SkipLong;
   TK_NextToken;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // PushBreak
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static void PushBreak;
+procedure PushBreak;
 begin
   if BreakIndex = MAX_CASE then
-  begin
-    ERR_Exit(ERR_BREAK_OVERFLOW, YES, NULL);
-   end;
-  BreakInfo[BreakIndex].level :=  StatementLevel;
-  BreakInfo[BreakIndex].addressPtr :=  pc_Address;
-  BreakIndex++;
-  end;
+    ERR_Exit(ERR_BREAK_OVERFLOW, True, '');
+  BreakInfo[BreakIndex].level := StatementLevel;
+  BreakInfo[BreakIndex].addressPtr := pc_Address;
+  Inc(BreakIndex);
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // WriteBreaks
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void WriteBreaks;
+procedure WriteBreaks;
 begin
   if BreakIndex = 0 then
-  begin
     exit;
-   end;
-  while BreakInfo[BreakIndex-1].level > StatementLevel do
+  while BreakInfo[BreakIndex - 1].level > StatementLevel do
   begin
-    PC_WriteLong(pc_Address, BreakInfo[--BreakIndex].addressPtr);
-   end;
+    dec(BreakIndex);
+    PC_WriteLong(pc_Address, BreakInfo[BreakIndex].addressPtr);
   end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1220,70 +1052,68 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static boolean BreakAncestor;
-begin
+function BreakAncestor: boolean;
+var
   i: integer;
-
-  for(i :=  0; i < StatementIndex; i++)
+begin
+  for i := 0 to StatementIndex - 1 do
   begin
     if IsBreakRoot[StatementHistory[i]] then
     begin
-      return YES;
-     end;
-   end;
-  return NO;
+      result := True;
+      exit;
+    end;
   end;
+  result := false;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // LeadingContinue
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static void LeadingContinue;
+procedure LeadingContinue;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingContinue ----\n');
+  MS_Message(MSG_DEBUG, '---- LeadingContinue ----'#13#10);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_GOTO);
   PushContinue;
   PC_SkipLong;
   TK_NextToken;
-  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // PushContinue
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static void PushContinue;
+procedure PushContinue;
 begin
   if ContinueIndex = MAX_CONTINUE then
-  begin
-    ERR_Exit(ERR_CONTINUE_OVERFLOW, YES, NULL);
-   end;
-  ContinueInfo[ContinueIndex].level :=  StatementLevel;
-  ContinueInfo[ContinueIndex].addressPtr :=  pc_Address;
-  ContinueIndex++;
-  end;
+    ERR_Exit(ERR_CONTINUE_OVERFLOW, True, '');
+  ContinueInfo[ContinueIndex].level := StatementLevel;
+  ContinueInfo[ContinueIndex].addressPtr := pc_Address;
+  Inc(ContinueIndex);
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // WriteContinues
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void WriteContinues(int address)
+procedure WriteContinues(const address: integer);
 begin
   if ContinueIndex = 0 then
-  begin
     exit;
-   end;
-  while ContinueInfo[ContinueIndex-1].level > StatementLevel do
+  while ContinueInfo[ContinueIndex - 1].level > StatementLevel do
   begin
-    PC_WriteLong(address, ContinueInfo[--ContinueIndex].addressPtr);
-   end;
+    Dec(ContinueIndex);
+    PC_WriteLong(address, ContinueInfo[ContinueIndex].addressPtr);
   end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1291,120 +1121,121 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static boolean ContinueAncestor;
-begin
+function ContinueAncestor: boolean;
+var
   i: integer;
-
-  for(i :=  0; i < StatementIndex; i++)
+begin
+  for i := 0 to StatementIndex - 1 do
   begin
     if IsContinueRoot[StatementHistory[i]] then
     begin
-      return YES;
-     end;
-   end;
-  return NO;
+      result := True;
+      Exit;
+    end;
   end;
+  result := False
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // LeadingVarAssign
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static void LeadingVarAssign(symbolNode_t *sym)
+procedure LeadingVarAssign(const sym: PsymbolNode_t);
+var
+  done: boolean;
+  assignToken: tokenType_t;
 begin
-  boolean done;
-  tokenType_t assignToken;
-
-  MS_Message(MSG_DEBUG, '---- LeadingVarAssign ----\n');
-  done :=  NO;
-  do
-  begin
+  MS_Message(MSG_DEBUG, '---- LeadingVarAssign ----'#13#10);
+  done := false;
+  repeat
     TK_NextToken; // Fetch assignment operator
     if (tk_Token = TK_INC) or (tk_Token = TK_DEC) then
-     begin  // Postfix increment or decrement
-      PC_AppendCmd(GetIncDecPCD(tk_Token, sym.type));
-      PC_AppendLong(sym.info.var.index);
+    begin  // Postfix increment or decrement
+      PC_AppendCmd(GetIncDecPCD(tk_Token, sym.typ));
+      PC_AppendLong(sym.info.svar.index);
       TK_NextToken;
-     end;
+    end
     else
-     begin  // Normal operator
-      if (TK_Member(AssignOps) = NO) then
-      begin
-        ERR_Exit(ERR_MISSING_ASSIGN_OP, YES, NULL);
-       end;
-      assignToken :=  tk_Token;
+    begin  // Normal operator
+      if not TK_Member(AssignOps) then
+        ERR_Exit(ERR_MISSING_ASSIGN_OP, True, '');
+      assignToken := tk_Token;
       TK_NextToken;
       EvalExpression;
-      PC_AppendCmd(GetAssignPCD(assignToken, sym.type));
-      PC_AppendLong(sym.info.var.index);
-     end;
+      PC_AppendCmd(GetAssignPCD(assignToken, sym.typ));
+      PC_AppendLong(sym.info.svar.index);
+    end;
     if tk_Token = TK_COMMA then
     begin
       TK_NextTokenMustBe(TK_IDENTIFIER, ERR_BAD_ASSIGNMENT);
-      sym :=  DemandSymbol(tk_Str);
-      if(sym.type <> SY_SCRIPTVAR) and (sym.type <> SY_MAPVAR
-       ) and (sym.type <> SY_WORLDVAR)
-       begin
-        ERR_Exit(ERR_BAD_ASSIGNMENT, YES, NULL);
-       end;
-     end;
+      sym := DemandSymbol(tk_Str);
+      if (sym.typ <> SY_SCRIPTVAR) and (sym.typ <> SY_MAPVAR) and (sym.typ <> SY_WORLDVAR) then
+        ERR_Exit(ERR_BAD_ASSIGNMENT, True, '');
+    end
     else
     begin
       TK_TokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
       TK_NextToken;
-      done :=  YES;
-     end;
-   end; while(done = NO);
-  end;
+      done := True;
+    end;
+  until done;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // GetAssignPCD
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-static pcd_t GetAssignPCD(token: integer, symbolType_t symbol)
-begin
-  i: integer;
-  static struct
-  begin
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+type
+  Lookup_t = record
     token: integer;
-    symbolType_t symbol;
-    pcd_t pcd;
-   end;  assignmentLookup[] := 
-   begin
-    TK_ASSIGN, SY_SCRIPTVAR, PCD_ASSIGNSCRIPTVAR,
-    TK_ASSIGN, SY_MAPVAR, PCD_ASSIGNMAPVAR,
-    TK_ASSIGN, SY_WORLDVAR, PCD_ASSIGNWORLDVAR,
-    TK_ADDASSIGN, SY_SCRIPTVAR, PCD_ADDSCRIPTVAR,
-    TK_ADDASSIGN, SY_MAPVAR, PCD_ADDMAPVAR,
-    TK_ADDASSIGN, SY_WORLDVAR, PCD_ADDWORLDVAR,
-    TK_SUBASSIGN, SY_SCRIPTVAR, PCD_SUBSCRIPTVAR,
-    TK_SUBASSIGN, SY_MAPVAR, PCD_SUBMAPVAR,
-    TK_SUBASSIGN, SY_WORLDVAR, PCD_SUBWORLDVAR,
-    TK_MULASSIGN, SY_SCRIPTVAR, PCD_MULSCRIPTVAR,
-    TK_MULASSIGN, SY_MAPVAR, PCD_MULMAPVAR,
-    TK_MULASSIGN, SY_WORLDVAR, PCD_MULWORLDVAR,
-    TK_DIVASSIGN, SY_SCRIPTVAR, PCD_DIVSCRIPTVAR,
-    TK_DIVASSIGN, SY_MAPVAR, PCD_DIVMAPVAR,
-    TK_DIVASSIGN, SY_WORLDVAR, PCD_DIVWORLDVAR,
-    TK_MODASSIGN, SY_SCRIPTVAR, PCD_MODSCRIPTVAR,
-    TK_MODASSIGN, SY_MAPVAR, PCD_MODMAPVAR,
-    TK_MODASSIGN, SY_WORLDVAR, PCD_MODWORLDVAR,
-    TK_NONE
-   end;
-
-  for(i :=  0; assignmentLookup[i].token <> TK_NONE; i++)
-  begin
-    if(assignmentLookup[i].token = token
-     ) and (assignmentLookup[i].symbol = symbol)
-     begin
-      return assignmentLookup[i].pcd;
-     end;
-   end;
-  return PCD_NOP;
+    symbol: symbolType_t;
+    pcd: integer;
   end;
+
+const
+  ASSIGNMENT_LOOKUP_SIZE = 19;
+
+  assignmentLookup: array[0..ASSIGNMENT_LOOKUP_SIZE - 1] of Lookup_t = (
+    (token: TK_ASSIGN;    symbol: SY_SCRIPTVAR; pcd: PCD_ASSIGNSCRIPTVAR),
+    (token: TK_ASSIGN;    symbol: SY_MAPVAR;    pcd: PCD_ASSIGNMAPVAR),
+    (token: TK_ASSIGN;    symbol: SY_WORLDVAR;  pcd: PCD_ASSIGNWORLDVAR),
+    (token: TK_ADDASSIGN; symbol: SY_SCRIPTVAR; pcd: PCD_ADDSCRIPTVAR),
+    (token: TK_ADDASSIGN; symbol: SY_MAPVAR;    pcd: PCD_ADDMAPVAR),
+    (token: TK_ADDASSIGN; symbol: SY_WORLDVAR;  pcd: PCD_ADDWORLDVAR),
+    (token: TK_SUBASSIGN; symbol: SY_SCRIPTVAR; pcd: PCD_SUBSCRIPTVAR),
+    (token: TK_SUBASSIGN; symbol: SY_MAPVAR;    pcd: PCD_SUBMAPVAR),
+    (token: TK_SUBASSIGN; symbol: SY_WORLDVAR;  pcd: PCD_SUBWORLDVAR),
+    (token: TK_MULASSIGN; symbol: SY_SCRIPTVAR; pcd: PCD_MULSCRIPTVAR),
+    (token: TK_MULASSIGN; symbol: SY_MAPVAR;    pcd: PCD_MULMAPVAR),
+    (token: TK_MULASSIGN; symbol: SY_WORLDVAR;  pcd: PCD_MULWORLDVAR),
+    (token: TK_DIVASSIGN; symbol: SY_SCRIPTVAR; pcd: PCD_DIVSCRIPTVAR),
+    (token: TK_DIVASSIGN; symbol: SY_MAPVAR;    pcd: PCD_DIVMAPVAR),
+    (token: TK_DIVASSIGN; symbol: SY_WORLDVAR;  pcd: PCD_DIVWORLDVAR),
+    (token: TK_MODASSIGN; symbol: SY_SCRIPTVAR; pcd: PCD_MODSCRIPTVAR),
+    (token: TK_MODASSIGN; symbol: SY_MAPVAR;    pcd: PCD_MODMAPVAR),
+    (token: TK_MODASSIGN; symbol: SY_WORLDVAR;  pcd: PCD_MODWORLDVAR),
+    (token: TK_NONE;      symbol: 0;            pcd: 0)
+  );
+
+function GetAssignPCD(token: integer, symbolType_t symbol): Integer;
+var
+  i: integer;
+begin
+  i := 0;
+  while assignmentLookup[i].token <> TK_NONE do
+  begin
+    if (assignmentLookup[i].token = token) and (assignmentLookup[i].symbol = symbol) then
+    begin
+      result := assignmentLookup[i].pcd;
+      exit;
+    end;
+    inc(i);
+  end;
+  result := PCD_NOP;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1412,13 +1243,13 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingSuspend;
+procedure LeadingSuspend;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingSuspend ----\n');
+  MS_Message(MSG_DEBUG, '---- LeadingSuspend ----'#13#10);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_SUSPEND);
   TK_NextToken;
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1426,13 +1257,13 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingTerminate;
+procedure LeadingTerminate;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingTerminate ----\n');
+  MS_Message(MSG_DEBUG, '---- LeadingTerminate ----'#13#10);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_TERMINATE);
   TK_NextToken;
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1440,13 +1271,13 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void LeadingRestart;
+procedure LeadingRestart;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingRestart ----\n');
+  MS_Message(MSG_DEBUG, '---- LeadingRestart ----'#13#10);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_RESTART);
   TK_NextToken;
-  end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1454,17 +1285,15 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static int EvalConstExpression;
+function EvalConstExpression: Integer;
 begin
-  ExprStackIndex :=  0;
-  ConstantExpression :=  YES;
+  ExprStackIndex := 0;
+  ConstantExpression := True;
   ExprLevA;
   if ExprStackIndex <> 1 then
-  begin
-    ERR_Exit(ERR_BAD_CONST_EXPR, YES, NULL);
-   end;
-  return PopExStk;
-  end;
+    ERR_Exit(ERR_BAD_CONST_EXPR, True, '');
+  result := PopExStk;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1472,14 +1301,14 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void EvalExpression;
+procedure EvalExpression;
 begin
-  ConstantExpression :=  NO;
+  ConstantExpression := False;
   ExprLevA;
-  end;
+end;
 
-// Operator:) or (
-static void ExprLevA;
+// Operator: ||
+procedure ExprLevA;
 begin
   ExprLevB;
   while tk_Token = TK_ORLOGICAL do
@@ -1487,11 +1316,11 @@ begin
     TK_NextToken;
     ExprLevB;
     SendExprCommand(PCD_ORLOGICAL);
-   end;
   end;
+end;
 
-// Operator:) and (
-static void ExprLevB;
+// Operator: &&
+procedure ExprLevB;
 begin
   ExprLevC;
   while tk_Token = TK_ANDLOGICAL do
@@ -1499,11 +1328,11 @@ begin
     TK_NextToken;
     ExprLevC;
     SendExprCommand(PCD_ANDLOGICAL);
-   end;
   end;
+end;
 
-// Operator:) or (
-static void ExprLevC;
+// Operator: |
+procedure ExprLevC;
 begin
   ExprLevD;
   while tk_Token = TK_ORBITWISE do
@@ -1511,11 +1340,11 @@ begin
     TK_NextToken;
     ExprLevD;
     SendExprCommand(PCD_ORBITWISE);
-   end;
   end;
+end;
 
-// Operator:) xor (
-static void ExprLevD;
+// Operator: ^
+procedure ExprLevD;
 begin
   ExprLevE;
   while tk_Token = TK_EORBITWISE do
@@ -1523,11 +1352,11 @@ begin
     TK_NextToken;
     ExprLevE;
     SendExprCommand(PCD_EORBITWISE);
-   end;
   end;
+end;
 
-// Operator:) and (
-static void ExprLevE;
+// Operator: &
+procedure ExprLevE;
 begin
   ExprLevF;
   while tk_Token = TK_ANDBITWISE do
@@ -1535,223 +1364,209 @@ begin
     TK_NextToken;
     ExprLevF;
     SendExprCommand(PCD_ANDBITWISE);
-   end;
   end;
+end;
 
-// Operators: = <> 
-static void ExprLevF;
-begin
+// Operators: = <>
+procedure ExprLevF;
+var
   token: integer;
-
+begin
   ExprLevG;
-  while (TK_Member(LevFOps)) do
+  while TK_Member(LevFOps) do
   begin
-    token :=  tk_Token;
+    token := tk_Token;
     TK_NextToken;
     ExprLevG;
     SendExprCommand(TokenToPCD(token));
-   end;
   end;
+end;
 
-// Operators: < <= > >= 
-static void ExprLevG;
-begin
+// Operators: < <= > >=
+procedure ExprLevG;
+var
   token: integer;
-
+begin
   ExprLevH;
-  while (TK_Member(LevGOps)) do
+  while TK_Member(LevGOps) do
   begin
-    token :=  tk_Token;
+    token := tk_Token;
     TK_NextToken;
     ExprLevH;
     SendExprCommand(TokenToPCD(token));
-   end;
   end;
+end;
 
-// Operators:  shl   shr 
-static void ExprLevH;
-begin
+// Operators:  shl   shr
+procedure ExprLevH;
+var
   token: integer;
-
+begin
   ExprLevI;
-  while (TK_Member(LevHOps)) do
+  while TK_Member(LevHOps) do
   begin
-    token :=  tk_Token;
+    token := tk_Token;
     TK_NextToken;
     ExprLevI;
     SendExprCommand(TokenToPCD(token));
-   end;
   end;
+end;
 
 // Operators: + -
-static void ExprLevI;
-begin
+procedure ExprLevI;
+var
   token: integer;
-
+begin
   ExprLevJ;
-  while (TK_Member(LevIOps)) do
+  while TK_Member(LevIOps) do
   begin
-    token :=  tk_Token;
+    token := tk_Token;
     TK_NextToken;
     ExprLevJ;
     SendExprCommand(TokenToPCD(token));
-   end;
   end;
+end;
 
-// Operators: * /  mod 
-static void ExprLevJ;
-begin
+// Operators: * /  mod
+procedure ExprLevJ;
+var
   token: integer;
-  boolean unaryMinus;
-
-  unaryMinus :=  FALSE;
+  unaryMinus: boolean;
+begin
+  unaryMinus := False;
   if tk_Token = TK_MINUS then
   begin
-    unaryMinus :=  TRUE;
+    unaryMinus := True;
     TK_NextToken;
-   end;
-  if ConstantExpression = YES then
-  begin
-    ConstExprFactor;
-   end;
+  end;
+  if ConstantExpression then
+    ConstExprFactor
   else
-  begin
     ExprFactor;
-   end;
-  if unaryMinus = TRUE then
-  begin
+  if unaryMinus then
     SendExprCommand(PCD_UNARYMINUS);
-   end;
-  while (TK_Member(LevJOps)) do
+  while TK_Member(LevJOps) do
   begin
-    token :=  tk_Token;
+    token := tk_Token;
     TK_NextToken;
-    if ConstantExpression = YES then
-    begin
-      ConstExprFactor;
-     end;
+    if ConstantExpression then
+      ConstExprFactor
     else
-    begin
       ExprFactor;
-     end;
     SendExprCommand(TokenToPCD(token));
-   end;
   end;
+end;
 
-static void ExprFactor;
+procedure ExprFactor;
+var
+  sym: PsymbolNode_t;
+  opToken: tokenType_t;
 begin
-  symbolNode_t *sym;
-  tokenType_t opToken;
-
-  switch(tk_Token)
-  begin
+  case tk_Token of
     TK_STRING:
-      PC_AppendCmd(PCD_PUSHNUMBER);
-      PC_AppendLong(STR_Find(tk_Str));
-      TK_NextToken;
-      break;
-    TK_NUMBER:
-      PC_AppendCmd(PCD_PUSHNUMBER);
-      PC_AppendLong(tk_Number);
-      TK_NextToken;
-      break;
-    TK_LPAREN:
-      TK_NextToken;
-      ExprLevA;
-      if tk_Token <> TK_RPAREN then
       begin
-        ERR_Exit(ERR_BAD_EXPR, YES, NULL);
-       end;
-      TK_NextToken;
-      break;
+        PC_AppendCmd(PCD_PUSHNUMBER);
+        PC_AppendLong(STR_Find(tk_Str));
+        TK_NextToken;
+      end;
+    TK_NUMBER:
+      begin
+        PC_AppendCmd(PCD_PUSHNUMBER);
+        PC_AppendLong(tk_Number);
+        TK_NextToken;
+      end;
+    TK_LPAREN:
+      begin
+        TK_NextToken;
+        ExprLevA;
+        if tk_Token <> TK_RPAREN then
+          ERR_Exit(ERR_BAD_EXPR, True, '');
+        TK_NextToken;
+      end;
     TK_NOT:
-      TK_NextToken;
-      ExprFactor;
-      PC_AppendCmd(PCD_NEGATELOGICAL);
-      break;
-    TK_INC:
+      begin
+        TK_NextToken;
+        ExprFactor;
+        PC_AppendCmd(PCD_NEGATELOGICAL);
+      end;
+    TK_INC,
     TK_DEC:
-      opToken :=  tk_Token;
-      TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INCDEC_OP_ON_NON_VAR);
-      sym :=  DemandSymbol(tk_Str);
-      if(sym.type <> SY_SCRIPTVAR) and (sym.type <> SY_MAPVAR
-       ) and (sym.type <> SY_WORLDVAR)
-       begin
-        ERR_Exit(ERR_INCDEC_OP_ON_NON_VAR, YES, NULL);
-       end;
-      PC_AppendCmd(GetIncDecPCD(opToken, sym.type));
-      PC_AppendLong(sym.info.var.index);
-      PC_AppendCmd(GetPushVarPCD(sym.type));
-      PC_AppendLong(sym.info.var.index);
-      TK_NextToken;
-      break;
+      begin
+        opToken := tk_Token;
+        TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INCDEC_OP_ON_NON_VAR);
+        sym :=  DemandSymbol(tk_Str);
+        if (sym.typ <> SY_SCRIPTVAR) and (sym.typ <> SY_MAPVAR) and (sym.typ <> SY_WORLDVAR) then
+          ERR_Exit(ERR_INCDEC_OP_ON_NON_VAR, True, '');
+        PC_AppendCmd(GetIncDecPCD(opToken, sym.typ));
+        PC_AppendLong(sym.info.svar.index);
+        PC_AppendCmd(GetPushVarPCD(sym.typ));
+        PC_AppendLong(sym.info.svar.index);
+        TK_NextToken;
+      end;
     TK_IDENTIFIER:
-      sym :=  DemandSymbol(tk_Str);
-      switch(sym.type)
       begin
-        SY_SCRIPTVAR:
-        SY_MAPVAR:
-        SY_WORLDVAR:
-          PC_AppendCmd(GetPushVarPCD(sym.type));
-          PC_AppendLong(sym.info.var.index);
-          TK_NextToken;
-          if (tk_Token = TK_INC) or (tk_Token = TK_DEC) then
-          begin
-            PC_AppendCmd(GetIncDecPCD(tk_Token, sym.type));
-            PC_AppendLong(sym.info.var.index);
-            TK_NextToken;
-           end;
-          break;
-        SY_INTERNFUNC:
-          if sym.info.internFunc.hasReturnValue = NO then
-          begin
-            ERR_Exit(ERR_EXPR_FUNC_NO_RET_VAL, YES, NULL);
-           end;
-          ProcessInternFunc(sym);
-          break;
-        default:
-          ERR_Exit(ERR_ILLEGAL_EXPR_IDENT, YES,
-            'Identifier: %s', tk_Str);
-          break;
-       end;
-      break;
-    default:
-      ERR_Exit(ERR_BAD_EXPR, YES, NULL);
-      break;
-   end;
+        sym := DemandSymbol(tk_Str);
+        case sym.typ of
+          SY_SCRIPTVAR,
+          SY_MAPVAR,
+          SY_WORLDVAR:
+            begin
+              PC_AppendCmd(GetPushVarPCD(sym.typ));
+              PC_AppendLong(sym.info.svar.index);
+              TK_NextToken;
+              if (tk_Token = TK_INC) or (tk_Token = TK_DEC) then
+              begin
+                PC_AppendCmd(GetIncDecPCD(tk_Token, sym.typ));
+                PC_AppendLong(sym.info.svar.index);
+                TK_NextToken;
+              end;
+            end;
+          SY_INTERNFUNC:
+            begin
+              if not sym.info.internFunc.hasReturnValue then
+                ERR_Exit(ERR_EXPR_FUNC_NO_RET_VAL, True, '');
+              ProcessInternFunc(sym);
+            end;
+        else
+          ERR_Exit(ERR_ILLEGAL_EXPR_IDENT, True, 'Identifier: %s', [tk_Str]);
+        end;
+      end;
+  else
+    ERR_Exit(ERR_BAD_EXPR, True, '');
   end;
+end;
 
-static void ConstExprFactor;
+procedure ConstExprFactor;
 begin
-  switch(tk_Token)
-  begin
+  case tk_Token of
     TK_STRING:
-      PushExStk(STR_Find(tk_Str));
-      TK_NextToken;
-      break;
-    TK_NUMBER:
-      PushExStk(tk_Number);
-      TK_NextToken;
-      break;
-    TK_LPAREN:
-      TK_NextToken;
-      ExprLevA;
-      if tk_Token <> TK_RPAREN then
       begin
-        ERR_Exit(ERR_BAD_CONST_EXPR, YES, NULL);
-       end;
-      TK_NextToken;
-      break;
+        PushExStk(STR_Find(tk_Str));
+        TK_NextToken;
+      end;
+    TK_NUMBER:
+      begin
+        PushExStk(tk_Number);
+        TK_NextToken;
+      end;
+    TK_LPAREN:
+      begin
+        TK_NextToken;
+        ExprLevA;
+        if tk_Token <> TK_RPAREN then
+          ERR_Exit(ERR_BAD_CONST_EXPR, True, '');
+        TK_NextToken;
+      end;
     TK_NOT:
-      TK_NextToken;
-      ConstExprFactor;
-      SendExprCommand(PCD_NEGATELOGICAL);
-      break;
-    default:
-      ERR_Exit(ERR_BAD_CONST_EXPR, YES, NULL);
-      break;
-   end;
+      begin
+        TK_NextToken;
+        ConstExprFactor;
+        SendExprCommand(PCD_NEGATELOGICAL);
+      end;
+  else
+    ERR_Exit(ERR_BAD_CONST_EXPR, True, '');
   end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1759,87 +1574,76 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void SendExprCommand(pcd_t pcd)
-begin
+procedure SendExprCommand(const pcd: integer);
+var
   operand2: integer;
-
-  if ConstantExpression = NO then
+begin
+  if not ConstantExpression then
   begin
     PC_AppendCmd(pcd);
     exit;
-   end;
-  switch(pcd)
-  begin
+  end;
+
+  case pcd of
     PCD_ADD:
-      PushExStk(PopExStk+PopExStk);
-      break;
+      PushExStk(PopExStk + PopExStk);
     PCD_SUBTRACT:
-      operand2 :=  PopExStk;
-      PushExStk(PopExStk-operand2);
-      break;
+      begin
+        operand2 := PopExStk;
+        PushExStk(PopExStk - operand2);
+      end;
     PCD_MULTIPLY:
-      PushExStk(PopExStk*PopExStk);
-      break;
+      PushExStk(PopExStk * PopExStk);
     PCD_DIVIDE:
-      operand2 :=  PopExStk;
-      PushExStk(PopExStk/operand2);
-      break;
+      begin
+        operand2 := PopExStk;
+        PushExStk(PopExStk div operand2);
+      end;
     PCD_MODULUS:
-      operand2 :=  PopExStk;
-      PushExStk(PopExStk mod operand2);
-      break;
+      begin
+        operand2 := PopExStk;
+        PushExStk(PopExStk mod operand2);
+      end;
     PCD_EQ:
       PushExStk(PopExStk = PopExStk);
-      break;
     PCD_NE:
       PushExStk(PopExStk <> PopExStk);
-      break;
     PCD_LT:
       PushExStk(PopExStk >= PopExStk);
-      break;
     PCD_GT:
       PushExStk(PopExStk <= PopExStk);
-      break;
     PCD_LE:
       PushExStk(PopExStk > PopExStk);
-      break;
     PCD_GE:
       PushExStk(PopExStk < PopExStk);
-      break;
     PCD_ANDLOGICAL:
-      PushExStk(PopExStk) and (PopExStk);
-      break;
+      PushExStk(PopExStk and PopExStk);
     PCD_ORLOGICAL:
-      PushExStk(PopExStk) or (PopExStk);
-      break;
+      PushExStk(PopExStk or PopExStk);
     PCD_ANDBITWISE:
-      PushExStk(PopExStk) and (PopExStk);
-      break;
+      PushExStk(PopExStk and PopExStk);
     PCD_ORBITWISE:
-      PushExStk(PopExStk) or (PopExStk);
-      break;
+      PushExStk(PopExStk or PopExStk);
     PCD_EORBITWISE:
-      PushExStk(PopExStk) xor (PopExStk);
-      break;
+      PushExStk(PopExStk xor PopExStk);
     PCD_NEGATELOGICAL:
       PushExStk(not PopExStk);
-      break;
     PCD_LSHIFT:
-      operand2 :=  PopExStk;
-      PushExStk(PopExStk shr operand2);
-      break;
+      begin
+        operand2 := PopExStk;
+        PushExStk(PopExStk shr operand2);
+      end;
     PCD_RSHIFT:
-      operand2 :=  PopExStk;
-      PushExStk(PopExStk shl operand2);
-      break;
+      begin
+        operand2 := PopExStk;
+        PushExStk(PopExStk shl operand2);
+      end;
     PCD_UNARYMINUS:
       PushExStk(-PopExStk);
-      break;
-    default:
-      ERR_Exit(ERR_UNKNOWN_CONST_EXPR_PCD, YES, NULL);
-      break;
-   end;
+  else
+    ERR_Exit(ERR_UNKNOWN_CONST_EXPR_PCD, True, '');
   end;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1847,14 +1651,13 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static void PushExStk(int value)
+procedure PushExStk(const value: integer);
 begin
   if ExprStackIndex = EXPR_STACK_DEPTH then
-  begin
-    ERR_Exit(ERR_EXPR_STACK_OVERFLOW, YES, NULL);
-   end;
-  ExprStack[ExprStackIndex++] :=  value;
-  end;
+    ERR_Exit(ERR_EXPR_STACK_OVERFLOW, True, '');
+  ExprStack[ExprStackIndex] := value;
+  Inc(ExprStackIndex);
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1862,14 +1665,13 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static int PopExStk;
+function PopExStk: integer;
 begin
   if ExprStackIndex < 1 then
-  begin
-    ERR_Exit(ERR_EXPR_STACK_EMPTY, YES, NULL);
-   end;
-  return ExprStack[--ExprStackIndex];
-  end;
+    ERR_Exit(ERR_EXPR_STACK_EMPTY, True, '');
+  Dec(ExprStackIndex);
+  result := ExprStack[ExprStackIndex];
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1877,98 +1679,103 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static pcd_t TokenToPCD(token: integer)
-begin
-  i: integer;
-  static struct
-  begin
+type
+  operatorLookup_t = record
     token: integer;
-    pcd_t pcd;
-   end;  operatorLookup[] := 
-   begin
-    TK_EQ, PCD_EQ,
-    TK_NE, PCD_NE,
-    TK_LT, PCD_LT,
-    TK_LE, PCD_LE,
-    TK_GT, PCD_GT,
-    TK_GE, PCD_GE,
-    TK_LSHIFT, PCD_LSHIFT,
-    TK_RSHIFT, PCD_RSHIFT,
-    TK_PLUS, PCD_ADD,
-    TK_MINUS, PCD_SUBTRACT,
-    TK_ASTERISK, PCD_MULTIPLY,
-    TK_SLASH, PCD_DIVIDE,
-    TK_PERCENT, PCD_MODULUS,
-    TK_NONE
-   end;
+    pcd: integer;
+  end;
 
-  for(i :=  0; operatorLookup[i].token <> TK_NONE; i++)
+const
+  NUM_OPERATOR_LOOKUP = 14;
+
+  operatorLookup: array[0..NUM_OPERATOR_LOOKUP - 1] of operatorLookup_t = (
+    (token: TK_EQ;        pcd: PCD_EQ),
+    (token: TK_NE;        pcd: PCD_NE),
+    (token: TK_LT;        pcd: PCD_LT),
+    (token: TK_LE;        pcd: PCD_LE),
+    (token: TK_GT;        pcd: PCD_GT),
+    (token: TK_GE;        pcd: PCD_GE),
+    (token: TK_LSHIFT;    pcd: PCD_LSHIFT),
+    (token: TK_RSHIFT;    pcd: PCD_RSHIFT),
+    (token: TK_PLUS;      pcd: PCD_ADD),
+    (token: TK_MINUS;     pcd: PCD_SUBTRACT),
+    (token: TK_ASTERISK;  pcd: PCD_MULTIPLY),
+    (token: TK_SLASH;     pcd: PCD_DIVIDE),
+    (token: TK_PERCENT;   pcd: PCD_MODULUS),
+    (token: TK_NONE;      pcd: PCD_NOP)
+  );
+
+function TokenToPCD(token: integer): integer;
+var
+  i: integer;
+begin
+  i := 0;
+  while operatorLookup[i].token <> TK_NONE do
   begin
     if operatorLookup[i].token = token then
     begin
-      return operatorLookup[i].pcd;
-     end;
-   end;
-  return PCD_NOP;
+      result := operatorLookup[i].pcd;
+      exit;
+    end;
+    inc(i);
   end;
+  result := PCD_NOP;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // GetPushVarPCD
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static pcd_t GetPushVarPCD(symbolType_t symType)
+function GetPushVarPCD(const symType: symbolType_t): Integer;
 begin
-  switch(symType)
-  begin
+  case symType of
     SY_SCRIPTVAR:
-      return PCD_PUSHSCRIPTVAR;
+      result := PCD_PUSHSCRIPTVAR;
     SY_MAPVAR:
-      return PCD_PUSHMAPVAR;
+      result := PCD_PUSHMAPVAR;
     SY_WORLDVAR:
-      return PCD_PUSHWORLDVAR;
-    default:
-      break;
-   end;
-  return PCD_NOP;
+      result := PCD_PUSHWORLDVAR;
+  else
+    result := PCD_NOP;
   end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // GetIncDecPCD
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-static pcd_t GetIncDecPCD(token: integer, symbolType_t symbol)
-begin
+const
+  NUM_INCDEC_LOOKUP = 7;
+  incDecLookup: array[0..] of Lookup_t = (
+    (token: TK_INC;   symbol: SY_SCRIPTVAR; pcd: PCD_INCSCRIPTVAR),
+    (token: TK_INC;   symbol: SY_MAPVAR;    pcd: PCD_INCMAPVAR),
+    (token: TK_INC;   symbol: SY_WORLDVAR;  pcd: PCD_INCWORLDVAR),
+    (token: TK_DEC;   symbol: SY_SCRIPTVAR; pcd: PCD_DECSCRIPTVAR),
+    (token: TK_DEC;   symbol: SY_MAPVAR;    pcd: PCD_DECMAPVAR),
+    (token: TK_DEC;   symbol: SY_WORLDVAR;  pcd: PCD_DECWORLDVAR),
+    (token: TK_NONE;  symbol: 0;            pcd: 0)
+  );
+
+function GetIncDecPCD(token: integer, symbolType_t symbol): Integer;
+var
   i: integer;
-  static struct
+begin
+  i := 0;
+  while incDecLookup[i].token <> TK_NONE do
   begin
-    token: integer;
-    symbolType_t symbol;
-    pcd_t pcd;
-   end;  incDecLookup[] := 
-   begin
-    TK_INC, SY_SCRIPTVAR, PCD_INCSCRIPTVAR,
-    TK_INC, SY_MAPVAR, PCD_INCMAPVAR,
-    TK_INC, SY_WORLDVAR, PCD_INCWORLDVAR,
-    TK_DEC, SY_SCRIPTVAR, PCD_DECSCRIPTVAR,
-    TK_DEC, SY_MAPVAR, PCD_DECMAPVAR,
-    TK_DEC, SY_WORLDVAR, PCD_DECWORLDVAR,
-    TK_NONE
-   end;
-
-  for(i :=  0; incDecLookup[i].token <> TK_NONE; i++)
-  begin
-    if(incDecLookup[i].token = token
-     ) and (incDecLookup[i].symbol = symbol)
-     begin
-      return incDecLookup[i].pcd;
-     end;
-   end;
-  return PCD_NOP;
+    if (incDecLookup[i].token = token) and (incDecLookup[i].symbol = symbol) then
+    begin
+      result := incDecLookup[i].pcd;
+      exit;
+    end;
+    inc(i);
   end;
+  result := PCD_NOP;
+end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
@@ -1976,14 +1783,12 @@ begin
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-static symbolNode_t *DemandSymbol(char *name)
+function DemandSymbol(const name: string): PsymbolNode_t;
 begin
-  symbolNode_t *sym;
+  result := SY_Find(name);
+  if result = nil then
+    ERR_Exit(ERR_UNKNOWN_IDENTIFIER, True, 'Identifier: %s', [name]);
+end;
 
-  if ((sym :=  SY_Find(name)) = NULL) then
-  begin
-    ERR_Exit(ERR_UNKNOWN_IDENTIFIER, YES,
-      'Identifier: %s', name);
-   end;
-  return sym;
-  end;
+end.
+
