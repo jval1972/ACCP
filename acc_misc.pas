@@ -36,7 +36,7 @@ const
   MSG_VERBOSE = 1;
   MSG_DEBUG = 2;
 
-function MS_LoadFile(const name: string; var buffer: pointer): pointer;
+function MS_LoadFile(const name: string; var buffer: pointer): integer;
 
 procedure MS_StripFileExt(var name: string);
 
@@ -44,7 +44,9 @@ implementation
 
 uses
   d_delphi,
-  acc_error;
+  acc,
+  acc_error,
+  acc_common;
 
 const
   ASCII_SLASH = 47;
@@ -73,7 +75,7 @@ begin
     result := v;
     exit;
   end;
-  result := (v and 255) shl 8 + (val shr 8) and 255;
+  result := (v and 255) shl 8 + (v shr 8) and 255;
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -91,8 +93,8 @@ begin
     result := v;
     exit;
    end;
-  result := (v and 255) shl 24 + (((val shr 8) and 255) shl 16) + (((val shr 16) and 255) shl 8) +
-    (val shr 24) and 255;
+  result := (v and 255) shl 24 + (((v shr 8) and 255) shl 16) + (((v shr 16) and 255) shl 8) +
+    (v shr 24) and 255;
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -101,7 +103,7 @@ end;
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-function MS_LoadFile(const name: string; var buffer: pointer): pointer;
+function MS_LoadFile(const name: string; var buffer: pointer): integer;
 var
   handle: file;
   size, cnt: integer;
@@ -109,29 +111,28 @@ begin
   if not fopen(handle, name, fOpenReadOnly) then
     ERR_Exit(ERR_CANT_OPEN_FILE, false, 'File: ''%s''.', [name]);
 
-  size := fsize(handle);
-  buffer := mallooc(size);
+  size := filesize(handle);
+  buffer := malloc(size);
   if buffer = nil then
     ERR_Exit(ERR_NONE, false, 'Couldn''t malloc %d bytes for file ''%s''.', [size, name]);
 
   BlockRead(handle, buffer, size, cnt);
-  fclose(handle);
+  close(handle);
   if cnt < size then
     ERR_Exit(ERR_CANT_READ_FILE, false, 'File: ''%s''.', [name]);
 
   result := size;
 end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // MS_SaveFile
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 function MS_SaveFile(const name: string; const buffer: pointer; const len: integer): boolean;
 var
   handle: file;
-  cnt:
 begin
   if not fopen(handle, name, fCreate) then
   begin
@@ -140,7 +141,7 @@ begin
   end;
 
   result := fwrite(buffer, len, 1, handle);
-  fclose(handle);
+  close(handle);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -179,7 +180,7 @@ end;
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-procedure MS_Message(const typ: integer; const fmt: string; var args: array of const = []);
+procedure MS_Message(const typ: integer; const fmt: string; var args: array of const);
 begin
   if typ = MSG_VERBOSE then
     if not acs_VerboseMode then
