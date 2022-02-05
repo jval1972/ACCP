@@ -163,8 +163,24 @@ end;
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure MS_SuggestFileExt(var base: string; const extension: string);
+var
+  i, len: integer;
 begin
-  base := fname(base) + '.' + extension;
+  len := Length(base);
+  for i := len downto 1 do
+  begin
+    if base[i] in ['\', '/'] then
+      break;
+    if base[i] = '.' then
+    begin
+      SetLength(base, i - 1);
+      break;
+    end;
+  end;
+  if CharPos('.', extension) = 1 then
+    base := base + extension
+  else
+    base := base + '.' + extension;
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
