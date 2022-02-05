@@ -251,12 +251,12 @@ begin
       repeat
         TK_NextTokenMustBe(TK_INT, ERR_BAD_VAR_TYPE);
         TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-        if SY_FindLocal(tk_Str) <> nil then
+        if SY_FindLocal(tk_Text) <> nil then
         begin  // Redefined
           ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
-            'Identifier: %s', [tk_Str]);
+            'Identifier: %s', [tk_Text]);
         end;
-        sym := SY_InsertLocal(tk_Str, SY_SCRIPTVAR);
+        sym := SY_InsertLocal(tk_Text, SY_SCRIPTVAR);
         sym.info.svar.index := ScriptVarCount;
         Inc(ScriptVarCount);
         TK_NextToken;
@@ -299,12 +299,12 @@ begin
     if pa_MapVarCount = MAX_MAP_VARIABLES then
       ERR_Exit(ERR_TOO_MANY_MAP_VARS, True, '');
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-    if SY_FindGlobal(tk_Str) <> nil then
+    if SY_FindGlobal(tk_Text) <> nil then
     begin  // Redefined
       ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
-        'Identifier: %s', [tk_Str]);
+        'Identifier: %s', [tk_Text]);
     end;
-    sym := SY_InsertGlobal(tk_Str, SY_MAPVAR);
+    sym := SY_InsertGlobal(tk_Text, SY_MAPVAR);
     sym.info.svar.index := pa_MapVarCount;
     Inc(pa_MapVarCount);
     TK_NextToken;
@@ -336,12 +336,12 @@ begin
     index := tk_Number;
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_WVAR_COLON);
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-    if SY_FindGlobal(tk_Str) <> nil then
+    if SY_FindGlobal(tk_Text) <> nil then
     begin  // Redefined
       ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
-        'Identifier: %s', [tk_Str]);
+        'Identifier: %s', [tk_Text]);
     end;
-    sym := SY_InsertGlobal(tk_Str, SY_WORLDVAR);
+    sym := SY_InsertGlobal(tk_Text, SY_WORLDVAR);
     sym.info.svar.index := index;
     TK_NextToken;
     inc(pa_WorldVarCount);
@@ -367,12 +367,12 @@ begin
     special := tk_Number;
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_SPEC_COLON);
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-    if SY_FindGlobal(tk_Str) <> nil then
+    if SY_FindGlobal(tk_Text) <> nil then
     begin  // Redefined
       ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
-        'Identifier: %s', [tk_Str]);
+        'Identifier: %s', [tk_Text]);
     end;
-    sym := SY_InsertGlobal(tk_Str, SY_SPECIAL);
+    sym := SY_InsertGlobal(tk_Text, SY_SPECIAL);
     TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
     TK_NextTokenMustBe(TK_NUMBER, ERR_MISSING_SPEC_ARGC);
     sym.info.special.value := special;
@@ -397,12 +397,12 @@ var
 begin
   MS_Message(MSG_DEBUG, '---- OuterDefine ----'#13#10);
   TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-  if SY_FindGlobal(tk_Str) <> nil then
+  if SY_FindGlobal(tk_Text) <> nil then
   begin  // Redefined
     ERR_Exit(ERR_REDEFINED_IDENTIFIER, true,
-      'Identifier: %s', [tk_Str]);
+      'Identifier: %s', [tk_Text]);
   end;
-  sym := SY_InsertGlobal(tk_Str, SY_CONSTANT);
+  sym := SY_InsertGlobal(tk_Text, SY_CONSTANT);
   TK_NextToken;
   value := EvalConstExpression;
   MS_Message(MSG_DEBUG, 'Constant value: %d'#13#10, [value]);
@@ -419,7 +419,7 @@ procedure OuterInclude;
 begin
   MS_Message(MSG_DEBUG, '---- OuterInclude ----'#13#10);
   TK_NextTokenMustBe(TK_STRING, ERR_STRING_LIT_NOT_FOUND);
-  TK_Include(tk_Str);
+  TK_Include(tk_Text);
   TK_NextToken;
 end;
 
@@ -534,12 +534,12 @@ begin
     if ScriptVarCount = MAX_SCRIPT_VARIABLES then
       ERR_Exit(ERR_TOO_MANY_SCRIPT_VARS, True, '');
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
-    if SY_FindLocal(tk_Str) <> nil then
+    if SY_FindLocal(tk_Text) <> nil then
     begin  // Redefined
       ERR_Exit(ERR_REDEFINED_IDENTIFIER, True,
-        'Identifier: %s', [tk_Str]);
+        'Identifier: %s', [tk_Text]);
     end;
-    sym := SY_InsertLocal(tk_Str, SY_SCRIPTVAR);
+    sym := SY_InsertLocal(tk_Text, SY_SCRIPTVAR);
     sym.info.svar.index := ScriptVarCount;
     Inc(ScriptVarCount);
     TK_NextToken;
@@ -610,7 +610,7 @@ procedure LeadingIdentifier;
 var
   sym: PsymbolNode_t;
 begin
-  sym := DemandSymbol(tk_Str);
+  sym := DemandSymbol(tk_Text);
   case sym.typ of
     SY_SCRIPTVAR,
     SY_MAPVAR,
@@ -1170,7 +1170,7 @@ begin
     if tk_Token = TK_COMMA then
     begin
       TK_NextTokenMustBe(TK_IDENTIFIER, ERR_BAD_ASSIGNMENT);
-      sym := DemandSymbol(tk_Str);
+      sym := DemandSymbol(tk_Text);
       if (sym.typ <> SY_SCRIPTVAR) and (sym.typ <> SY_MAPVAR) and (sym.typ <> SY_WORLDVAR) then
         ERR_Exit(ERR_BAD_ASSIGNMENT, True, '');
     end
@@ -1466,7 +1466,7 @@ begin
     TK_STRING:
       begin
         PC_AppendCmd(PCD_PUSHNUMBER);
-        PC_AppendLong(STR_Find(tk_Str));
+        PC_AppendLong(STR_Find(tk_Text));
         TK_NextToken;
       end;
     TK_NUMBER:
@@ -1494,7 +1494,7 @@ begin
       begin
         opToken := tk_Token;
         TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INCDEC_OP_ON_NON_VAR);
-        sym :=  DemandSymbol(tk_Str);
+        sym :=  DemandSymbol(tk_Text);
         if (sym.typ <> SY_SCRIPTVAR) and (sym.typ <> SY_MAPVAR) and (sym.typ <> SY_WORLDVAR) then
           ERR_Exit(ERR_INCDEC_OP_ON_NON_VAR, True, '');
         PC_AppendCmd(GetIncDecPCD(opToken, sym.typ));
@@ -1505,7 +1505,7 @@ begin
       end;
     TK_IDENTIFIER:
       begin
-        sym := DemandSymbol(tk_Str);
+        sym := DemandSymbol(tk_Text);
         case sym.typ of
           SY_SCRIPTVAR,
           SY_MAPVAR,
@@ -1528,7 +1528,7 @@ begin
               ProcessInternFunc(sym);
             end;
         else
-          ERR_Exit(ERR_ILLEGAL_EXPR_IDENT, True, 'Identifier: %s', [tk_Str]);
+          ERR_Exit(ERR_ILLEGAL_EXPR_IDENT, True, 'Identifier: %s', [tk_Text]);
         end;
       end;
   else
@@ -1541,7 +1541,7 @@ begin
   case tk_Token of
     TK_STRING:
       begin
-        PushExStk(STR_Find(tk_Str));
+        PushExStk(STR_Find(tk_Text));
         TK_NextToken;
       end;
     TK_NUMBER:

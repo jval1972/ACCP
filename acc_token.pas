@@ -38,9 +38,9 @@ const
 const
   TK_NONE = 0;  
   TK_EOF = 1;  
-  TK_IDENTIFIER = 2;  // VALUE: (char *) tk_Str
-  TK_STRING = 3;  // VALUE: (char *) tk_Str
-  TK_NUMBER = 4;  // VALUE: (int) tk_Number
+  TK_IDENTIFIER = 2;  // VALUE: (char *) tk_Text
+  TK_STRING = 3;  // VALUE: (char *) tk_Text
+  TK_NUMBER = 4;  // VALUE: (int) tk_Num
   TK_LINESPECIAL = 5;  // VALUE: (int) tk_LineSpecial
   TK_PLUS = 6;  // '+'
   TK_MINUS = 7;  // '-'
@@ -132,13 +132,18 @@ type
   end;
   PnestInfo_t = ^nestInfo_t;
 
+procedure TK_Init;
+
 implementation
+
+uses
+  acc_common;
 
 var
   tk_Token: integer;
   tk_Line: integer;
-  tk_Number: integer;
-  tk_Str: string;
+  tk_Num: integer;
+  tk_Text: string;
   tk_SpecialValue: integer;
   tk_SpecialArgCount: integer;
   tk_SourceName: string;
@@ -150,7 +155,7 @@ var
   FilePtr: PChar;
   FileEnd: PChar;
   SourceOpen: boolean;
-  ASCIIToChrCode: array[0..255] of char;
+  ASCIIToChrCode: array[0..255] of byte;
   ASCIIToHexDigit: array[0..255] of byte;
   OpenFiles: array[0..MAX_NESTED_SOURCES - 1] of nestInfo_t;
   AlreadyGot: boolean;
@@ -224,7 +229,7 @@ begin
   for i := Ord('A') to Ord('F') do
     ASCIIToHexDigit[i] := 10 + (i - Ord('A'));
 
-  for(i := Ord('a') to Ord('f') do
+  for i := Ord('a') to Ord('f') do
     ASCIIToHexDigit[i] := 10 + (i - Ord('a'));
 
   for i := Ord('A') to Ord('Z') do
@@ -236,7 +241,7 @@ begin
   ASCIIToChrCode[ASCII_QUOTE] := CHR_QUOTE;
   ASCIIToChrCode[ASCII_UNDERSCORE] := CHR_LETTER;
   ASCIIToChrCode[EOF_CHARACTER] := CHR_EOF;
-  tk_Str := '';
+  tk_Text := '';
   IncLineNumber := false;
   tk_IncludedLines := 0;
   SourceOpen := false;
@@ -493,15 +498,15 @@ end;
 
 procedure ProcessLetterToken;
 begin
-  tk_Str := '';
+  tk_Text := '';
   while ASCIIToChrCode[Ord(Ch)] in [CHR_LETTER, CHR_NUMBER] do
   begin
-    if Length(tk_Str) = MAX_IDENTIFIER_LENGTH then
+    if Length(tk_Text) = MAX_IDENTIFIER_LENGTH then
       ERR_Exit(ERR_IDENTIFIER_TOO_LONG, True, '');
-    tk_Str := tk_Str + Ch;
+    tk_Text := tk_Text + Ch;
     NextChr;
   end;
-  tk_Str := strlower(tk_Str);
+  tk_Text := strlower(tk_Text);
   if not CheckForKeyword and not CheckForLineSpecial and not CheckForConstant then
     tk_Token := TK_IDENTIFIER;
 end;
@@ -519,7 +524,7 @@ begin
   i := 0;
   while Keywords[i].name <> '' do
   begin
-    if tk_Str = Keywords[i].name then
+    if tk_Text = Keywords[i].name then
     begin
       tk_Token := Keywords[i].token;
       result := true;
@@ -540,7 +545,7 @@ function CheckForLineSpecial: boolean;
 var
   sym: PsymbolNode_t;
 begin
-  sym := SY_FindGlobal(tk_Str);
+  sym := SY_FindGlobal(tk_Text);
 
   if sym = nil then
   begin
@@ -570,7 +575,7 @@ function CheckForConstant: boolean;
 var
   sym: PsymbolNode_t;
 begin
-  sym := SY_FindGlobal(tk_Str);
+  sym := SY_FindGlobal(tk_Text);
 
   if sym = nil then
   begin
@@ -585,7 +590,7 @@ begin
   end;
 
   tk_Token := TK_NUMBER;
-  tk_Number := sym.info.constant.value;
+  tk_Num := sym.info.constant.value;
   result := true;
 end;
 
@@ -609,17 +614,17 @@ begin
     exit;
   end;
 
-  tk_Number := Ord(c) - Ord('0');
+  tk_Num := Ord(c) - Ord('0');
   while ASCIIToChrCode[Ord(Ch)] = CHR_NUMBER do
   begin
-    tk_Number := 10 * tk_Number + (Ord(Ch) - Ord('0'));
+    tk_Num := 10 * tk_Num + (Ord(Ch) - Ord('0'));
     NextChr;
   end;
 
   if Ch = '.' then
   begin  // Fixed point
     NextChr; // Skip period
-    EvalFixedConstant(tk_Number);
+    EvalFixedConstant(tk_Num);
     exit;
   end;
 
@@ -652,7 +657,7 @@ begin
     divisor := divisor * 10;
     NextChr;
   end;
-  tk_Number := (whole shl 16) + ((frac shl 16) div divisor);
+  tk_Num := (whole shl 16) + ((frac shl 16) div divisor);
   tk_Token := TK_NUMBER;
 end;
 
@@ -664,10 +669,10 @@ end;
 
 procedure EvalHexConstant;
 begin
-  tk_Number := 0;
+  tk_Num := 0;
   while ASCIIToHexDigit[Ord(Ch)] <> NON_HEX_DIGIT do
   begin
-    tk_Number := (tk_Number shl 4) + ASCIIToHexDigit[Ord(Ch)];
+    tk_Num := (tk_Num shl 4) + ASCIIToHexDigit[Ord(Ch)];
     NextChr;
   end;
   tk_Token := TK_NUMBER;
@@ -684,17 +689,17 @@ var
   radix: integer;
   digitVal: integer;
 begin
-  radix := tk_Number;
+  radix := tk_Num;
   if (radix < 2) or (radix > 36) then
     ERR_Exit(ERR_BAD_RADIX_CONSTANT, true, '');
 
-  tk_Number := 0;
+  tk_Num := 0;
   while true do
   begin
     digitVal := DigitValue(Ch, radix);
     if digitVal = -1 then
       break;
-    tk_Number := radix * tk_Number + digitVal;
+    tk_Num := radix * tk_Num + digitVal;
     NextChr;
   end;
   tk_Token := TK_NUMBER;
@@ -734,16 +739,16 @@ end;
 
 procedure ProcessQuoteToken;
 begin
-  tk_Str := '';
+  tk_Text := '';
   NextChr;
   while Ch <> EOF_CHARACTER do
   begin
     if Ch = ASCII_QUOTE then
       break;
-    if Length(tk_Str) = MAX_QUOTED_LENGTH then
+    if Length(tk_Text) = MAX_QUOTED_LENGTH then
       ERR_Exit(ERR_STRING_TOO_LONG, True, '');
 
-    tk_Str := tk_Str + Ch;
+    tk_Text := tk_Text + Ch;
     NextChr;
   end;
 
