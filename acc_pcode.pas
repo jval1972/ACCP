@@ -165,6 +165,8 @@ procedure PC_AppendString(const str: string);
 
 procedure PC_AppendLong(const v: U_LONG);
 
+procedure PC_WriteLong(const v: U_LONG; const address: integer);
+
 procedure PC_SkipLong;
 
 implementation
@@ -327,7 +329,7 @@ begin
   PC_AppendLong(U_LONG(pc_ScriptCount));
   for i := 0 to pc_ScriptCount - 1 do
   begin
-    info := &ScriptInfo[i];
+    info := @ScriptInfo[i];
     MS_Message(MSG_DEBUG, 'Script %d, address = %d, arg count = %d'#13#10,
       [info.number, info.address, info.argCount]);
     PC_AppendLong(U_LONG(info.number));
@@ -362,10 +364,12 @@ begin
 end;
 
 procedure PC_AppendLong(const v: U_LONG);
+var
+  vl: U_LONG;
 begin
   MS_Message(MSG_DEBUG, 'AL> %06d = %d'#13#10, [pc_Address, v]);
-  v := MS_LittleULONG(v);
-  Append(&v, SizeOf(U_LONG));
+  vl := MS_LittleULONG(v);
+  Append(@vl, SizeOf(U_LONG));
 end;
 
 procedure PC_AppendString(const str: string);
@@ -384,10 +388,12 @@ begin
 end;
 
 procedure PC_AppendCmd(const command: integer);
+var
+  cl: integer;
 begin
   MS_Message(MSG_DEBUG, 'AC> %06d = #%d:%s'#13#10, [pc_Address, command, PCDNames[command]]);
-  command := MS_LittleULONG(command);
-  Append(@command, SizeOf(U_LONG));
+  cl := MS_LittleULONG(command);
+  Append(@cl, SizeOf(U_LONG));
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -411,10 +417,12 @@ begin
 end;
 
 procedure PC_WriteLong(const v: U_LONG; const address: integer);
+var
+  vl: U_LONG;
 begin
   MS_Message(MSG_DEBUG, 'WL> %06d = %d'#13#10, [address, v]);
-  v := MS_LittleULONG(v);
-  DoWrite(@val, SizeOf(U_LONG), address);
+  vl := MS_LittleULONG(v);
+  DoWrite(@vl, SizeOf(U_LONG), address);
 end;
 
 procedure PC_WriteString(const str: string; const address: integer);
@@ -428,15 +436,17 @@ begin
    pb[i - 1] := Ord(str[i]);
   pb[len - 1] := 0;
   MS_Message(MSG_DEBUG, 'WS> %06d = ''%s'' (%d bytes)'#13#10, [address, str, len]);
-  DoWrite(str, len, address);
+  DoWrite(pb, len, address);
   memfree(Pointer(pb), len);
 end;
 
 procedure PC_WriteCmd(const command: integer; const address: integer);
+var
+  cl: integer;
 begin
   MS_Message(MSG_DEBUG, 'WC> %06d = #%d:%s'#13#10, [address, command, PCDNames[command]]);
-  command := MS_LittleULONG(command);
-  DoWrite(@command, SizeOf(U_LONG), address);
+  cl := MS_LittleULONG(command);
+  DoWrite(@cl, SizeOf(U_LONG), address);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -462,7 +472,7 @@ end;
 
 procedure PC_SkipLong;
 begin
-  MS_Message(MSG_DEBUG, 'SL> %06d (skip long)'#13#10, pc_Address);
+  MS_Message(MSG_DEBUG, 'SL> %06d (skip long)'#13#10, [pc_Address]);
   Skip(SizeOf(U_LONG));
 end;
 

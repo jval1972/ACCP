@@ -31,6 +31,9 @@ unit acc_misc;
 
 interface
 
+uses
+  acc_common;
+
 const
   MSG_NORMAL = 0;
   MSG_VERBOSE = 1;
@@ -38,19 +41,22 @@ const
 
 function MS_LoadFile(const name: string; var buffer: pointer): integer;
 
+function MS_SaveFile(const name: string; const buffer: pointer; const len: integer): boolean;
+
 procedure MS_StripFileExt(var name: string);
 
 procedure MS_Message(const typ: integer; const fmt: string; const args: array of const);
 
 function MS_Alloc(const size: integer; const error: integer): pointer;
 
+function MS_LittleULONG(const v: U_LONG): U_LONG;
+
 implementation
 
 uses
   d_delphi,
   acc,
-  acc_error,
-  acc_common;
+  acc_error;
 
 const
   ASCII_SLASH = 47;

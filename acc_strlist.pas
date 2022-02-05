@@ -39,6 +39,8 @@ type
 
 procedure STR_WriteStrings;
 
+procedure STR_WriteList;
+
 implementation
 
 uses
