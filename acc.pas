@@ -77,8 +77,8 @@ end;
 
 procedure DisplayBanner;
 begin
-  writeln(#13#10'ACC Version ' + ACC_VERSION_TEXT + ' by Ben Gokey'#13#10);
-  writeln('Copyright (c) ' + ACC_COPYRIGHT_YEARS_TEXT + ' Raven Software, Corp.'#13#10);
+  printf(#13#10'ACC Version ' + ACC_VERSION_TEXT + ' by Ben Gokey'#13#10);
+  printf('Copyright (c) ' + ACC_COPYRIGHT_YEARS_TEXT + ' Raven Software, Corp.'#13#10);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -89,10 +89,10 @@ end;
 
 procedure DisplayUsage;
 begin
-  writeln('Usage: ACCP [options] source[.acs] [object[.o]]'#13#10);
-  writeln('-b       Set host native byte order to big endian');
-  writeln('-l       Set host native byte order to little endian');
-  writeln('-d[file] Output debugging information');
+  printf('Usage: ACCP [options] source[.acs] [object[.o]]'#13#10);
+  printf('-b       Set host native byte order to big endian'#13#10);
+  printf('-l       Set host native byte order to little endian'#13#10);
+  printf('-d[file] Output debugging information');
   Halt(1);
 end;
 
