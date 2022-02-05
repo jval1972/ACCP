@@ -106,12 +106,30 @@ const
 procedure ERR_Exit(error: integer; info: boolean; fmt: string; args: array of const);
 
 implementation
-  
+
+uses
+  d_delphi,
+  acc,
+  acc_misc,
+  acc_token;
+
 const
   ERROR_FILE_NAME = 'acs.err';
 
-var
-  ErrorFileName: string;
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// ErrorFileName
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+function ErrorFileName: string;
+begin
+  result := acs_SourceFileName;
+  MS_StripFileExt(result);
+  if result = '' then
+    result := ERROR_FILE_NAME;
+  result := result + '.err';
+end;
 
 type
   errormessage_t = record
@@ -197,6 +215,29 @@ var
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
+// ErrorText
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+function ErrorText(const error: integer): string;
+var
+  i: integer;
+begin
+  i := 0;
+  while ErrorNames[i].number <> ERR_NONE do
+  begin
+    if error = ErrorNames[i].number then
+    begin
+      result := ErrorNames[i].name;
+      exit;
+    end;
+  end;
+  result := '';
+end;
+
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
 // ERR_Exit
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -206,7 +247,7 @@ var
   workString: string;
   errFile: file;
 begin
-  errFile := fopen(ErrorFileName, 'w');
+  fopen(errFile, ErrorFileName, fCreate);
   printf('**** ERROR ****'#13#10);
   if info then
   begin
@@ -229,7 +270,7 @@ begin
     printf(workString + #13#10);
     fprintf(errFile, workString + #13#10);
   end;
-  fclose(errFile);
+  close(errFile);
   halt(1);
 end;
 
@@ -242,41 +283,6 @@ end;
 procedure ERR_RemoveErrorFile;
 begin
   fdelete(ErrorFileName);
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// ErrorFileName
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-static char *ErrorFileName;
-begin
-  result := acs_SourceFileName;
-  if not MS_StripFilename(result) then
-    result := ERROR_FILE_NAME;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// ErrorText
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-function ErrorText(const error: integer): string;
-var
-  i: integer;
-begin
-  i := 0;
-  while ErrorNames[i].number <> ERR_NONE do
-  begin
-    if error = ErrorNames[i].number then
-    begin
-      result := ErrorNames[i].name;
-      exit;
-    end;
-  end;
-  result := '';
 end;
 
 end.

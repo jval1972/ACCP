@@ -36,12 +36,6 @@ uses
 
 procedure acc_main(const argc: integer; const argv: TDStringList);
 
-implementation
-
-const
-  ACC_VERSION_TEXT = '1.10';
-  ACC_COPYRIGHT_YEARS_TEXT = '1995';
-
 var
   acs_BigEndianHost: boolean;
   acs_VerboseMode: boolean;
@@ -50,6 +44,15 @@ var
   ObjectFileName: string;
   ArgCount: integer;
   ArgVector: TDStringList;
+
+implementation
+
+uses
+  acc_token;
+
+const
+  ACC_VERSION_TEXT = '1.10';
+  ACC_COPYRIGHT_YEARS_TEXT = '1995';
 
 function one_or_many(const x: integer; const ifone, ifmany: string): string;
 begin

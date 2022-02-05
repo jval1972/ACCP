@@ -38,6 +38,8 @@ const
 
 function MS_LoadFile(const name: string; var buffer: pointer): pointer;
 
+procedure MS_StripFileExt(var name: string);
+
 implementation
 
 uses

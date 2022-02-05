@@ -136,12 +136,6 @@ procedure TK_Init;
 
 procedure TK_CloseSource;
 
-implementation
-
-uses
-  acc_common,
-  acc_misc;
-
 var
   tk_Token: integer;
   tk_Line: integer;
@@ -151,6 +145,12 @@ var
   tk_SpecialArgCount: integer;
   tk_SourceName: string;
   tk_IncludedLines: integer;
+
+implementation
+
+uses
+  acc_common,
+  acc_misc;
 
 var
   Ch: Char;
