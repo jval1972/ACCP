@@ -40,6 +40,10 @@ function MS_LoadFile(const name: string; var buffer: pointer): integer;
 
 procedure MS_StripFileExt(var name: string);
 
+procedure MS_Message(const typ: integer; const fmt: string; const args: array of const);
+
+function MS_Alloc(const size: integer; const error: integer): pointer;
+
 implementation
 
 uses
@@ -178,9 +182,9 @@ end;
 //
 // MS_Message
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-procedure MS_Message(const typ: integer; const fmt: string; var args: array of const);
+procedure MS_Message(const typ: integer; const fmt: string; const args: array of const);
 begin
   if typ = MSG_VERBOSE then
     if not acs_VerboseMode then
@@ -190,7 +194,7 @@ begin
     if not acs_DebugMode then
       exit;
 
-  printf(ftm, args);
+  printf(fmt, args);
 end;
 
 end.

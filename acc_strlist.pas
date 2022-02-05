@@ -37,7 +37,15 @@ type
     address: integer;
   end;
 
+procedure STR_WriteStrings;
+
 implementation
+
+uses
+  acc_common,
+  acc_error,
+  acc_misc,
+  acc_pcode;
 
 var
   str_StringCount: integer;
@@ -66,7 +74,7 @@ var
 begin
   for i := 0 to str_StringCount - 1 do
   begin
-    if (StringInfo[i].name = name then
+    if StringInfo[i].name = name then
     begin
       result := i;
       exit;
@@ -77,7 +85,7 @@ begin
     ERR_Exit(ERR_TOO_MANY_STRINGS, true, 'Current maximum: %d',
       [MAX_STRINGS]);
 
-  MS_Message(MSG_DEBUG, 'Adding string %d:'#13#10'  ''%s''#13#10,
+  MS_Message(MSG_DEBUG, 'Adding string %d:'#13#10'  ''%s'''#13#10,
     [str_StringCount, name]);
   StringInfo[str_StringCount].name := name;
   result := str_StringCount;
@@ -97,7 +105,7 @@ var
   i: integer;
   pad: U_LONG;
 begin
-  MS_Message(MSG_DEBUG, '---- STR_WriteStrings ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- STR_WriteStrings ----'#13#10, []);
   for i := 0 to str_StringCount - 1 do
   begin
     StringInfo[i].address := pc_Address;
@@ -120,7 +128,7 @@ procedure STR_WriteList;
 var
   i: integer;
 begin
-  MS_Message(MSG_DEBUG, '---- STR_WriteList ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- STR_WriteList ----'#13#10, []);
   PC_AppendLong(str_StringCount);
   for i := 0 to str_StringCount - 1 do
     PC_AppendLong(StringInfo[i].address);

@@ -96,6 +96,9 @@ type
 
 implementation
 
+uses
+  acc_pcode;
+
 var
   LocalRoot: PsymbolNode_t;
   GlobalRoot: PsymbolNode_t;
@@ -300,7 +303,7 @@ end;
 
 procedure SY_FreeLocals;
 begin
-  MS_Message(MSG_DEBUG, 'Freeing local identifiers\n');
+  MS_Message(MSG_DEBUG, 'Freeing local identifiers'#13#10);
   FreeNodes(LocalRoot);
   LocalRoot := nil;
 end;
@@ -313,7 +316,7 @@ end;
 
 procedure SY_FreeGlobals;
 begin
-  MS_Message(MSG_DEBUG, 'Freeing global identifiers\n');
+  MS_Message(MSG_DEBUG, 'Freeing global identifiers'#13#10);
   FreeNodes(GlobalRoot);
   GlobalRoot := nil;
 end;

@@ -27,7 +27,13 @@
 
 {$I Doom32.inc}
 
+unit acc_pcode;
+
 interface
+
+uses
+  d_delphi,
+  acc_common;
 
 const
   OPEN_SCRIPTS_BASE = 1000;
@@ -151,11 +157,26 @@ var
   pc_BufferPtr: PByteArray;
   pc_ScriptCount: integer;
 
+procedure PC_CloseObject;
+
+procedure PC_Append(const buffer: Pointer; const size: integer);
+
+procedure PC_AppendString(const str: string);
+
+procedure PC_AppendLong(const v: U_LONG);
+
+procedure PC_SkipLong;
+
 implementation
+
+uses
+  acc_error,
+  acc_misc,
+  acc_strlist;
 
 var
   BufferSize: integer;
-  ObjectOpened: boolean false;
+  ObjectOpened: boolean = false;
   ScriptInfo: array[0..MAX_SCRIPT_COUNT - 1] of scriptInfo_t;
   ObjectName: string;
   ObjectFlags: integer;
@@ -283,8 +304,8 @@ begin
   pc_Address := 0;
   ObjectFlags := flags;
   BufferSize := size;
-  pc_ScriptCount :=  0;
-  ObjectOpened :=  YES;
+  pc_ScriptCount := 0;
+  ObjectOpened := True;
   PC_AppendString('ACS');
   PC_SkipLong; // Script table offset
 end;
@@ -300,7 +321,7 @@ var
   i: integer;
   info: PscriptInfo_t;
 begin
-  MS_Message(MSG_DEBUG, '---- PC_CloseObject ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- PC_CloseObject ----'#13#10, []);
   STR_WriteStrings;
   PC_WriteLong(U_LONG(pc_Address), 4);
   PC_AppendLong(U_LONG(pc_ScriptCount));
@@ -334,7 +355,7 @@ begin
   pc_Address := pc_Address + size;
 end;
 
-procedure PC_Append(void *buffer, size_t size);
+procedure PC_Append(const buffer: Pointer; const size: integer);
 begin
   MS_Message(MSG_DEBUG, 'AD> %06d = (%d bytes)'#13#10, [pc_Address, size]);
   Append(buffer, size);

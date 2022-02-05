@@ -36,7 +36,7 @@ const
   MAX_NESTED_SOURCES = 16;
 
 const
-  TK_NONE = 0;  
+  TK_NONE = 0;
   TK_EOF = 1;  
   TK_IDENTIFIER = 2;  // VALUE: (char *) tk_Text
   TK_STRING = 3;  // VALUE: (char *) tk_Text
@@ -136,6 +136,8 @@ procedure TK_Init;
 
 procedure TK_CloseSource;
 
+procedure TK_DoInclude(const fileName: string);
+
 var
   tk_Token: integer;
   tk_Line: integer;
@@ -146,11 +148,16 @@ var
   tk_SourceName: string;
   tk_IncludedLines: integer;
 
+procedure MakeIncludePath(const sourceName: string);
+
 implementation
 
 uses
+  d_delphi,
   acc_common,
-  acc_misc;
+  acc_error,
+  acc_misc,
+  acc_symbol;
 
 var
   Ch: Char;
@@ -209,6 +216,37 @@ var
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
+// NextChr
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure NextChr;
+begin
+  if FilePtr >= FileEnd then
+  begin
+    Ch := Chr(EOF_CHARACTER);
+    exit;
+  end;
+
+  if IncLineNumber then
+  begin
+    inc(tk_Line);
+    IncLineNumber := false;
+  end;
+
+  Ch := FilePtr^;
+  inc(FilePtr);
+  if Ch < Chr(ASCII_SPACE) then
+  begin
+    if Ch = #10 then
+      IncLineNumber := True;
+    Ch := Chr(ASCII_SPACE);
+  end;
+end;
+
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
 // TK_Init
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -259,9 +297,11 @@ end;
 procedure TK_OpenSource(const fileName: string);
 var
   size: integer;
+  p: pointer;
 begin
   TK_CloseSource;
-  size := MS_LoadFile(fileName, FileStart);
+  size := MS_LoadFile(fileName, p);
+  FileStart := p;
   tk_SourceName := fileName;
   MakeIncludePath(fileName);
   SourceOpen := true;
@@ -288,14 +328,15 @@ end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
-// TK_Include
+// TK_DoInclude
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-procedure TK_Include(const fileName: string);
+procedure TK_DoInclude(const fileName: string);
 var
   size: integer;
   info: PnestInfo_t;
+  p: pointer;
 begin
   if NestDepth = MAX_NESTED_SOURCES then
     ERR_Exit(ERR_INCL_NESTING_TOO_DEEP, true,
@@ -312,9 +353,10 @@ begin
   info.lastChar := Ch;
   tk_SourceName := IncludePath;
   tk_SourceName := tk_SourceName + fileName;
-  size := MS_LoadFile(tk_SourceName, @FileStart);
+  size := MS_LoadFile(tk_SourceName, p);
+  FileStart := p;
   info.size := size;
-  FileEnd := FileStart
+  FileEnd := FileStart;
   Inc(FileEnd, size);
   FilePtr := FileStart;
   tk_Line := 1;
@@ -369,53 +411,6 @@ begin
   end;
 end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// TK_NextToken
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-function TK_NextToken: integer;
-var
-  validToken: boolean;
-begin
-  if AlreadyGot then
-  begin
-    AlreadyGot := false;
-    result := tk_Token;
-    Exit;
-  end;
-
-  validToken := false;
-  repeat
-    while Ch = ASCII_SPACE do
-      NextChr;
-
-    case ASCIIToChrCode[Ord(Ch]] of
-      CHR_EOF:
-        tk_Token := TK_EOF;
-      CHR_LETTER:
-        ProcessLetterToken;
-      CHR_NUMBER:
-        ProcessNumberToken;
-      CHR_QUOTE:
-        ProcessQuoteToken;
-    else
-      ProcessSpecialToken;
-    end;
-
-    if tk_Token = TK_STARTCOMMENT then
-      SkipComment
-    else if tk_Token = TK_CPPCOMMENT then
-      SkipCPPComment
-    else if (tk_Token = TK_EOF)) and ((NestDepth > 0) then
-      PopNestedSource
-    else
-      validToken := true;
-  until validToken;
-  
-  result := tk_Token;
-end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
@@ -425,7 +420,7 @@ end;
 
 function TK_NextCharacter: integer;
 begin
-  while Ch = ASCII_SPACE do
+  while Ch = Chr(ASCII_SPACE) do
     NextChr;
 
   result := Ord(Ch);
@@ -436,30 +431,6 @@ begin
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// TK_NextTokenMustBe
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-procedure TK_NextTokenMustBe(const token: integer; const error: integer);
-begin
-  if TK_NextToken <> token then
-    ERR_Exit(error, True, '', [], []);
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// TK_TokenMustBe
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-procedure TK_TokenMustBe(const token: integer; const error: integer);
-begin
-  if tk_Token <> token then
-    ERR_Exit(error, True, '', []);
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
 // TK_Member
 //
@@ -491,27 +462,6 @@ procedure TK_Undo;
 begin
   if tk_Token <> TK_NONE then
     AlreadyGot := true;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// ProcessLetterToken
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-procedure ProcessLetterToken;
-begin
-  tk_Text := '';
-  while ASCIIToChrCode[Ord(Ch)] in [CHR_LETTER, CHR_NUMBER] do
-  begin
-    if Length(tk_Text) = MAX_IDENTIFIER_LENGTH then
-      ERR_Exit(ERR_IDENTIFIER_TOO_LONG, True, '', []);
-    tk_Text := tk_Text + Ch;
-    NextChr;
-  end;
-  tk_Text := strlower(tk_Text);
-  if not CheckForKeyword and not CheckForLineSpecial and not CheckForConstant then
-    tk_Token := TK_IDENTIFIER;
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -595,6 +545,27 @@ begin
   tk_Token := TK_NUMBER;
   tk_Num := sym.info.constant.value;
   result := true;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+//
+// ProcessLetterToken
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+
+procedure ProcessLetterToken;
+begin
+  tk_Text := '';
+  while ASCIIToChrCode[Ord(Ch)] in [CHR_LETTER, CHR_NUMBER] do
+  begin
+    if Length(tk_Text) = MAX_IDENTIFIER_LENGTH then
+      ERR_Exit(ERR_IDENTIFIER_TOO_LONG, True, '', []);
+    tk_Text := tk_Text + Ch;
+    NextChr;
+  end;
+  tk_Text := strlower(tk_Text);
+  if not CheckForKeyword and not CheckForLineSpecial and not CheckForConstant then
+    tk_Token := TK_IDENTIFIER;
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -936,36 +907,6 @@ end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
-// NextChr
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-procedure NextChr;
-begin
-  if FilePtr >= FileEnd then
-  begin
-    Ch := EOF_CHARACTER;
-    exit;
-  end
-
-  if IncLineNumber then
-  begin
-    inc(tk_Line);
-    IncLineNumber := false;
-  end;
-
-  Ch := FilePtr^;
-  inc(FilePtr);
-  if Ch < ASCII_SPACE then
-  begin
-    if Ch = #10 then
-      IncLineNumber := true;
-    Ch := ASCII_SPACE;
-   end;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
 // SkipComment
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -1006,6 +947,78 @@ begin
     end;
   end;
   NextChr;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// TK_NextToken
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+function TK_NextToken: integer;
+var
+  validToken: boolean;
+begin
+  if AlreadyGot then
+  begin
+    AlreadyGot := false;
+    result := tk_Token;
+    Exit;
+  end;
+
+  validToken := false;
+  repeat
+    while Ch = Chr(ASCII_SPACE) do
+      NextChr;
+
+    case ASCIIToChrCode[Ord(Ch)] of
+      CHR_EOF:
+        tk_Token := TK_EOF;
+      CHR_LETTER:
+        ProcessLetterToken;
+      CHR_NUMBER:
+        ProcessNumberToken;
+      CHR_QUOTE:
+        ProcessQuoteToken;
+    else
+      ProcessSpecialToken;
+    end;
+
+    if tk_Token = TK_STARTCOMMENT then
+      SkipComment
+    else if tk_Token = TK_CPPCOMMENT then
+      SkipCPPComment
+    else if (tk_Token = TK_EOF)) and ((NestDepth > 0) then
+      PopNestedSource
+    else
+      validToken := true;
+  until validToken;
+  
+  result := tk_Token;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// TK_NextTokenMustBe
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure TK_NextTokenMustBe(const token: integer; const error: integer);
+begin
+  if TK_NextToken <> token then
+    ERR_Exit(error, True, '', [], []);
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// TK_TokenMustBe
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure TK_TokenMustBe(const token: integer; const error: integer);
+begin
+  if tk_Token <> token then
+    ERR_Exit(error, True, '', []);
 end;
 
 end.
