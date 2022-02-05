@@ -32,7 +32,6 @@ program accp;
 {$APPTYPE CONSOLE}
 
 uses
-  SysUtils,
   acc in 'acc.pas',
   acc_common in 'acc_common.pas',
   acc_error in 'acc_error.pas',
