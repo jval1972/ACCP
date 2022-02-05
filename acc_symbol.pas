@@ -94,9 +94,18 @@ type
     hasReturnValue: boolean;
   end;
 
+function SY_InsertGlobal(const name: string; const typ: symbolType_t): PsymbolNode_t;
+
+function SY_FindGlobal(const name: string): PsymbolNode_t;
+
+function SY_FindLocal(const name: string): PsymbolNode_t;
+
 implementation
 
 uses
+  d_delphi,
+  acc_error,
+  acc_misc,
   acc_pcode;
 
 var
@@ -133,7 +142,7 @@ const
   );
 
 const
-  SymbolTypeNames: array[symbolType_t] = (
+  SymbolTypeNames: array[symbolType_t] of string[14] = (
     'SY_LABEL',
     'SY_SCRIPTVAR',
     'SY_MAPVAR',
@@ -190,33 +199,11 @@ end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
-// SY_FindGlobal
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-function SY_FindGlobal(const name: string): PsymbolNode_t
-begin
-  result := DoFind(name, GlobalRoot);
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// SY_Findlocal
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-function SY_FindLocal(const name: string): PsymbolNode_t
-begin
-  result := DoFind(name, LocalRoot);
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
 // Find
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-function DoFind(const name: string; const root: PsymbolNode_t); PsymbolNode_t;
+function DoFind(const name: string; const root: PsymbolNode_t): PsymbolNode_t;
 var
   compare: integer;
   node: PsymbolNode_t;
@@ -240,9 +227,62 @@ end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
+// SY_FindGlobal
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+function SY_FindGlobal(const name: string): PsymbolNode_t;
+begin
+  result := DoFind(name, GlobalRoot);
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// SY_Findlocal
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+function SY_FindLocal(const name: string): PsymbolNode_t;
+begin
+  result := DoFind(name, LocalRoot);
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// Insert
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+function DoInsert(const name: string; const typ: symbolType_t; root: PPsymbolNode_t): PsymbolNode_t;
+var
+  compare: integer;
+  newNode: PsymbolNode_t;
+  node: PsymbolNode_t;
+begin
+  newNode := MS_Alloc(SizeOf(symbolNode_t), ERR_NO_SYMBOL_MEM);
+  newNode.name := name;
+  newNode.left := nil;
+  newNode.right := nil;
+  newNode.typ := typ;
+  node := root^;
+  while node <> nil do
+  begin
+    compare := strcmp(name, node.name);
+    if compare < 0 then
+      root := @node.left
+    else
+      root := @node.right;
+    node := root^;
+  end;
+  root^ := newNode;
+  result := newNode;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
 // SY_InsertLocal
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 function SY_InsertLocal(const name: string; const typ: symbolType_t): PsymbolNode_t;
 begin
@@ -266,44 +306,29 @@ end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
-// Insert
+// FreeNodes
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-function DoInsert(const name: string; const typ: symbolType_t; var root: PPsymbolNode_t): PsymbolNode_t;
-var
-  compare: integer;
-  newNode: PsymbolNode_t;
-  node: PsymbolNode_t;
+procedure FreeNodes(var root: PsymbolNode_t);
 begin
-  newNode := MS_Alloc(SizeOf(symbolNode_t), ERR_NO_SYMBOL_MEM);
-  newNode.name := name;
-  newNode.left := nil;
-  newNode.right := nil;
-  newNode.typ := typ;
-  node := root^;
-  while node <> nil do
-  begin
-    compare := strcmp(name, node.name);
-    if compare < 0 then
-      root := @node.left
-    else
-      root := @node.right;
-    node := root^;
-   end;
-  root^ := newNode;
-  result := newNode;
+  if root = nil then
+    exit;
+
+  FreeNodes(root.left);
+  FreeNodes(root.right);
+  memfree(Pointer(root), SizeOf(symbolNode_t));
 end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // SY_FreeLocals
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure SY_FreeLocals;
 begin
-  MS_Message(MSG_DEBUG, 'Freeing local identifiers'#13#10);
+  MS_Message(MSG_DEBUG, 'Freeing local identifiers'#13#10, []);
   FreeNodes(LocalRoot);
   LocalRoot := nil;
 end;
@@ -316,25 +341,9 @@ end;
 
 procedure SY_FreeGlobals;
 begin
-  MS_Message(MSG_DEBUG, 'Freeing global identifiers'#13#10);
+  MS_Message(MSG_DEBUG, 'Freeing global identifiers'#13#10, []);
   FreeNodes(GlobalRoot);
   GlobalRoot := nil;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// FreeNodes
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-procedure FreeNodes(var root: symbolNode_t);
-begin
-  if root = nil then
-    exit;
-
-  FreeNodes(root.left);
-  FreeNodes(root.right);
-  memfree(Pointer(root), SizeOf(symbolNode_t));
 end;
 
 end.
