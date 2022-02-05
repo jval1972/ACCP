@@ -1,91 +1,90 @@
+//------------------------------------------------------------------------------
+//
+//  ACCP Compiler - ACS Compiler (Pascal)
+//  Based on ACC code by by Ben Gokey.
+//
+//  Copyright (C) 1995 by Raven Software
+//  Copyright (C) 2022 by Jim Valavanis
+//
+//  This program is free software; you can redistribute it and/or
+//  modify it under the terms of the GNU General Public License
+//  as published by the Free Software Foundation; either version 2
+//  of the License, or (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+//  02111-1307, USA.
+//
+//------------------------------------------------------------------------------
+//  Site  : https://sourceforge.net/projects/delphidoom/
+//------------------------------------------------------------------------------
 
-/(**************************************************************************
-/(**
-/(** strlist.c
-/(**
-/(**************************************************************************
+{$I Doom32.inc}
 
-// HEADER FILES ------------------------------------------------------------
+unit acc_strlist;
 
-#include <string.h>
-#include 'common.h'
-#include 'strlist.h'
-#include 'error.h'
-#include 'misc.h'
-#include 'pcode.h'
+interface
 
-// MACROS ------------------------------------------------------------------
+type
+  stringInfo_t = record
+    name: string;
+    address: integer;
+  end;
 
-// TYPES -------------------------------------------------------------------
+implementation
 
-typedef struct
-begin
-  char *name;
-  address: integer;
-  end; stringInfo_t;
-
-// EXTERNAL FUNCTION PROTOTYPES --------------------------------------------
-
-// PUBLIC FUNCTION PROTOTYPES ----------------------------------------------
-
-// PRIVATE FUNCTION PROTOTYPES ---------------------------------------------
-
-// EXTERNAL DATA DECLARATIONS ----------------------------------------------
-
-// PUBLIC DATA DEFINITIONS -------------------------------------------------
-
+var
   str_StringCount: integer;
+  StringInfo: array[0..MAX_STRINGS - 1] of stringInfo_t;
 
-// PRIVATE DATA DEFINITIONS ------------------------------------------------
-
-static stringInfo_t StringInfo[MAX_STRINGS];
-
-// CODE --------------------------------------------------------------------
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // STR_Init
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure STR_Init;
 begin
-  str_StringCount :=  0;
-  end;
+  str_StringCount := 0;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // STR_Find
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-int STR_Find(char *name)
-begin
+function STR_Find(const name: string): Integer;
+var
   i: integer;
-
-  for(i :=  0; i < str_StringCount; i++)
+begin
+  for i := 0 to str_StringCount - 1 do
   begin
-    if (strcmp(StringInfo[i].name, name) = 0) then
+    if (StringInfo[i].name = name then
     begin
-      return i;
-     end;
-   end;
+      result := i;
+      exit;
+    end;
+  end;
   // Add to list
   if str_StringCount = MAX_STRINGS then
-  begin
-    ERR_Exit(ERR_TOO_MANY_STRINGS, YES, 'Current maximum: %d',
-      MAX_STRINGS);
-   end;
-  MS_Message(MSG_DEBUG, 'Adding string %d:\n  \'%s\'\n',
-    str_StringCount, name);
-  StringInfo[str_StringCount].name :=  MS_Alloc(strlen(name)+1,
-    ERR_OUT_OF_MEMORY);
-  strcpy(StringInfo[str_StringCount].name, name);
-  str_StringCount++;
-  return str_StringCount-1;
-  end;
+    ERR_Exit(ERR_TOO_MANY_STRINGS, true, 'Current maximum: %d',
+      [MAX_STRINGS]);
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+  MS_Message(MSG_DEBUG, 'Adding string %d:'#13#10'  ''%s''#13#10,
+    [str_StringCount, name]);
+  StringInfo[str_StringCount].name := name;
+  result := str_StringCount;
+  Inc(str_StringCount);
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // STR_WriteStrings
 //
@@ -94,37 +93,38 @@ begin
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
 procedure STR_WriteStrings;
-begin
+var
   i: integer;
-  U_LONG pad;
-
-  MS_Message(MSG_DEBUG, '---- STR_WriteStrings ----\n');
-  for(i :=  0; i < str_StringCount; i++)
+  pad: U_LONG;
+begin
+  MS_Message(MSG_DEBUG, '---- STR_WriteStrings ----'#13#10);
+  for i := 0 to str_StringCount - 1 do
   begin
-    StringInfo[i].address :=  pc_Address;
+    StringInfo[i].address := pc_Address;
     PC_AppendString(StringInfo[i].name);
-   end;
-  if pc_Address%4 <> 0 then
-   begin  // Need to align
-    pad :=  0;
-    PC_Append((void *)) and (pad, 4-(pc_Address mod 4));
-   end;
   end;
+  if pc_Address mod 4 <> 0 then
+  begin  // Need to align
+    pad := 0;
+    PC_Append(&pad, 4 - (pc_Address mod 4));
+  end;
+end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // STR_WriteList
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure STR_WriteList;
-begin
+var
   i: integer;
+begin
+  MS_Message(MSG_DEBUG, '---- STR_WriteList ----'#13#10);
+  PC_AppendLong(str_StringCount);
+  for i := 0 to str_StringCount - 1 do
+    PC_AppendLong(StringInfo[i].address);
+end;
 
-  MS_Message(MSG_DEBUG, '---- STR_WriteList ----\n');
-  PC_AppendLong((U_LONG)str_StringCount);
-  for(i :=  0; i < str_StringCount; i++)
-  begin
-    PC_AppendLong((U_LONG)StringInfo[i].address);
-   end;
-  end;
+end.
+
