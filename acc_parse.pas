@@ -346,11 +346,11 @@ begin
     TK_TokenMustBe(TK_STR, ERR_BAD_VAR_TYPE);
   repeat
     TK_NextTokenMustBe(TK_NUMBER, ERR_MISSING_WVAR_INDEX);
-    if tk_Number >= MAX_WORLD_VARIABLES then
+    if tk_Num >= MAX_WORLD_VARIABLES then
     begin
       ERR_Exit(ERR_BAD_WVAR_INDEX, True, '', []);
     end;
-    index := tk_Number;
+    index := tk_Num;
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_WVAR_COLON);
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
     if SY_FindGlobal(tk_Text) <> nil then
@@ -381,7 +381,7 @@ begin
   MS_Message(MSG_DEBUG, '---- OuterSpecialDef ----'#13#10, []);
   repeat
     TK_NextTokenMustBe(TK_NUMBER, ERR_MISSING_SPEC_VAL);
-    special := tk_Number;
+    special := tk_Num;
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_SPEC_COLON);
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
     if SY_FindGlobal(tk_Text) <> nil then
@@ -393,7 +393,7 @@ begin
     TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
     TK_NextTokenMustBe(TK_NUMBER, ERR_MISSING_SPEC_ARGC);
     sym.info.special.value := special;
-    sym.info.special.argCount := tk_Number;
+    sym.info.special.argCount := tk_Num;
     TK_NextTokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
     TK_NextToken;
   until tk_Token <> TK_COMMA;
@@ -1490,7 +1490,7 @@ begin
     TK_NUMBER:
       begin
         PC_AppendCmd(PCD_PUSHNUMBER);
-        PC_AppendLong(tk_Number);
+        PC_AppendLong(tk_Num);
         TK_NextToken;
       end;
     TK_LPAREN:
@@ -1564,7 +1564,7 @@ begin
       end;
     TK_NUMBER:
       begin
-        PushExStk(tk_Number);
+        PushExStk(tk_Num);
         TK_NextToken;
       end;
     TK_LPAREN:
