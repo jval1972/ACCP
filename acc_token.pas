@@ -464,6 +464,7 @@ begin
       result := true;
       exit;
     end;
+    inc(i);
   end;
   result := false;
 end;
