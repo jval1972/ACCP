@@ -128,7 +128,8 @@ begin
   if buffer = nil then
     ERR_Exit(ERR_NONE, false, 'Couldn''t malloc %d bytes for file ''%s''.', [size, name]);
 
-  BlockRead(handle, buffer, size, cnt);
+  seek(handle, 0);
+  BlockRead(handle, buffer^, size, cnt);
   close(handle);
   if cnt < size then
     ERR_Exit(ERR_CANT_READ_FILE, false, 'File: ''%s''.', [name]);
