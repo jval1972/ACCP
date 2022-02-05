@@ -233,6 +233,7 @@ begin
       result := ErrorNames[i].name;
       exit;
     end;
+    inc(i);
   end;
   result := '';
 end;
