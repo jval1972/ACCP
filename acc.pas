@@ -49,6 +49,7 @@ implementation
 
 uses
   acc_common,
+  acc_error,
   acc_misc,
   acc_parse,
   acc_pcode,
@@ -214,7 +215,7 @@ begin
 
   MS_Message(MSG_NORMAL, '  %d world %s, %d map %s'#13#10,
     [pa_WorldVarCount, one_or_many(pa_WorldVarCount, 'variable', 'variables'),
-     pa_MapVarCount, one_or_many(pa_MapVarCount, 'variable', 'variables']);
+     pa_MapVarCount, one_or_many(pa_MapVarCount, 'variable', 'variables')]);
 
   MS_Message(MSG_NORMAL, '  object ''%s'': %d bytes'#13#10,
     [ObjectFileName, pc_Address]);

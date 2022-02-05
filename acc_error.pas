@@ -105,6 +105,8 @@ const
 
 procedure ERR_Exit(error: integer; info: boolean; fmt: string; args: array of const);
 
+procedure ERR_RemoveErrorFile;
+
 implementation
 
 uses

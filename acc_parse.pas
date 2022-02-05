@@ -33,6 +33,12 @@ interface
 
 procedure PA_Parse;
 
+var
+  pa_ScriptCount: integer;
+  pa_OpenScriptCount: integer;
+  pa_MapVarCount: integer;
+  pa_WorldVarCount: integer;
+
 implementation
 
 uses
@@ -83,12 +89,6 @@ type
     address: integer;
   end;
   PcaseInfo_t = ^caseInfo_t;
-
-var
-  pa_ScriptCount: integer;
-  pa_OpenScriptCount: integer;
-  pa_MapVarCount: integer;
-  pa_WorldVarCount: integer;
 
 var
   ScriptVarCount: integer;
