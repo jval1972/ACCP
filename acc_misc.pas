@@ -67,7 +67,7 @@ const
 
 function MS_Alloc(const size: integer; const error: integer): pointer;
 begin
-  result := malloc(size);
+  result := mallocz(size);
   if result = nil then
     ERR_Exit(error, false, '', []);
 end;
