@@ -44,7 +44,14 @@ uses
   acc_token in 'acc_token.pas',
   d_delphi in 'd_delphi.pas';
 
+var
+  args: TDStringList;
+  i: integer;
 begin
-  { TODO -oUser -cConsole Main : Insert code here }
+  args := TDStringList.Create;
+  for i := 1 to ParamCount do
+    args.Add(ParamStr(i));
+  acc_main(args.Count, args);
+  args.Free;
 end.
  
