@@ -48,6 +48,12 @@ var
 implementation
 
 uses
+  acc_common,
+  acc_misc,
+  acc_parse,
+  acc_pcode,
+  acc_strlist,
+  acc_symbol,
   acc_token;
 
 const
@@ -76,21 +82,17 @@ end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
-// Init
+// DisplayUsage
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-procedure Init;
+procedure DisplayUsage;
 begin
-  acs_BigEndianHost := false;
-  acs_VerboseMode := true;
-  acs_DebugMode := false;
-  TK_Init;
-  SY_Init;
-  STR_Init;
-  ProcessArgs;
-  MS_Message(MSG_NORMAL, 'Host byte order: %s endian'#13#10,
-    [decide(acs_BigEndianHost, 'BIG', 'LITTLE')]);
+  writeln('Usage: ACCP [options] source[.acs] [object[.o]]'#13#10);
+  writeln('-b       Set host native byte order to big endian');
+  writeln('-l       Set host native byte order to little endian');
+  writeln('-d[file] Output debugging information');
+  Halt(1);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -123,18 +125,18 @@ begin
           begin
             if Length(txt) <> 1 then
               DisplayUsage;
-            acs_BigEndianHost := true;
+            acs_BigEndianHost := True;
           end;
         'L':
           begin
             if Length(txt) <> 1 then
               DisplayUsage;
-            acs_BigEndianHost := false;
+            acs_BigEndianHost := False;
           end;
         'D':
           begin
-            acs_DebugMode := YES;
-            acs_VerboseMode := YES;
+            acs_DebugMode := True;
+            acs_VerboseMode := True;
           end;
       else
         DisplayUsage;
@@ -171,17 +173,21 @@ end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
-// DisplayUsage
+// Init
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-procedure DisplayUsage;
+procedure Init;
 begin
-  writeln('Usage: ACCP [options] source[.acs] [object[.o]]'#13#10);
-  writeln('-b       Set host native byte order to big endian');
-  writeln('-l       Set host native byte order to little endian');
-  writeln('-d[file] Output debugging information');
-  Halt(1);
+  acs_BigEndianHost := false;
+  acs_VerboseMode := true;
+  acs_DebugMode := false;
+  TK_Init;
+  SY_Init;
+  STR_Init;
+  ProcessArgs;
+  MS_Message(MSG_NORMAL, 'Host byte order: %s endian'#13#10,
+    [decide(acs_BigEndianHost, 'BIG', 'LITTLE')]);
 end;
 
 procedure acc_main(const argc: integer; const argv: TDStringList);

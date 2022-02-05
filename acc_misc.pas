@@ -45,6 +45,8 @@ function MS_SaveFile(const name: string; const buffer: pointer; const len: integ
 
 procedure MS_StripFileExt(var name: string);
 
+procedure MS_SuggestFileExt(var base: string; const extension: string);
+
 procedure MS_Message(const typ: integer; const fmt: string; const args: array of const);
 
 function MS_Alloc(const size: integer; const error: integer): pointer;

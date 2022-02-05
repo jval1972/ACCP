@@ -31,6 +31,9 @@ unit acc_token;
 
 interface
 
+uses
+  d_delphi;
+
 const
   NON_HEX_DIGIT = 255;
   MAX_NESTED_SOURCES = 16;
@@ -134,9 +137,23 @@ type
 
 procedure TK_Init;
 
+procedure TK_OpenSource(const fileName: string);
+
 procedure TK_CloseSource;
 
+procedure TK_Undo;
+
 procedure TK_DoInclude(const fileName: string);
+
+function TK_NextToken: integer;
+
+procedure TK_NextTokenMustBe(const token: integer; const error: integer);
+
+procedure TK_TokenMustBe(const token: integer; const error: integer);
+
+function TK_NextCharacter: integer;
+
+function TK_Member(const list: PIntegerArray): boolean;
 
 var
   tk_Token: integer;
@@ -153,7 +170,6 @@ procedure MakeIncludePath(const sourceName: string);
 implementation
 
 uses
-  d_delphi,
   acc_common,
   acc_error,
   acc_misc,

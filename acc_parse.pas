@@ -29,6 +29,22 @@
 
 unit acc_parse;
 
+interface
+
+procedure PA_Parse;
+
+implementation
+
+uses
+  d_delphi,
+  acc_common,
+  acc_error,
+  acc_misc,
+  acc_pcode,
+  acc_strlist,
+  acc_symbol,
+  acc_token;
+
 const
   MAX_STATEMENT_DEPTH = 128;
   MAX_BREAK = 128;
@@ -66,6 +82,7 @@ type
     isDefault: boolean;
     address: integer;
   end;
+  PcaseInfo_t = ^caseInfo_t;
 
 var
   pa_ScriptCount: integer;
@@ -119,13 +136,13 @@ const
     true    // STMT_FOR
   );
 
-  LevFOps: array[0..2] of tokenType_t = (
+  LevFOps: array[0..2] of integer = (
     TK_EQ,
     TK_NE,
     TK_NONE
   );
 
-  LevGOps: array[0..4] of tokenType_t = (
+  LevGOps: array[0..4] of integer = (
     TK_LT,
     TK_LE,
     TK_GT,
@@ -133,26 +150,26 @@ const
     TK_NONE
   );
 
-  LevHOps: array[0..2] of tokenType_t = (
+  LevHOps: array[0..2] of integer = (
     TK_LSHIFT,
     TK_RSHIFT,
     TK_NONE
   );
 
-  LevIOps: array[0..2] of tokenType_t = (
+  LevIOps: array[0..2] of integer = (
     TK_PLUS,
     TK_MINUS,
     TK_NONE
   );
 
-  LevJOps: array[0..3] of tokenType_t = (
+  LevJOps: array[0..3] of integer = (
     TK_ASTERISK,
     TK_SLASH,
     TK_PERCENT,
     TK_NONE
   );
 
-  AssignOps: array[0..6] of tokenType_t = (
+  AssignOps: array[0..6] of integer = (
     TK_ASSIGN,
     TK_ADDASSIGN,
     TK_SUBASSIGN,
@@ -162,77 +179,77 @@ const
     TK_NONE
   );
 
+procedure OuterScript; forward;
+procedure OuterMapVar; forward;
+procedure OuterWorldVar; forward;
+procedure OuterSpecialDef; forward;
+procedure OuterDefine; forward;
+procedure OuterInclude; forward;
+function ProcessStatement(const owner: statement_t): boolean; forward;
+procedure LeadingCompoundStatement(const owner: statement_t); forward;
+procedure LeadingVarDeclare; forward;
+procedure LeadingLineSpecial; forward;
+procedure LeadingIdentifier; forward;
+procedure LeadingInternFunc(const sym: PsymbolNode_t); forward;
+procedure ProcessInternFunc(const sym: PsymbolNode_t); forward;
+procedure LeadingPrint; forward;
+procedure LeadingIf; forward;
+procedure LeadingFor; forward;
+procedure LeadingWhileUntil; forward;
+procedure LeadingDo; forward;
+procedure LeadingSwitch; forward;
+procedure LeadingCase; forward;
+procedure LeadingDefault; forward;
+procedure PushCase(const value: integer; const isDefault: boolean); forward;
+function GetCaseInfo: PcaseInfo_t; forward;
+function DefaultInCurrent: boolean; forward;
+procedure LeadingBreak; forward;
+procedure PushBreak; forward;
+procedure WriteBreaks; forward;
+function BreakAncestor: boolean; forward;
+procedure LeadingContinue; forward;
+procedure PushContinue; forward;
+procedure WriteContinues(const address: integer); forward;
+function ContinueAncestor: boolean; forward;
+procedure LeadingVarAssign(sym: PsymbolNode_t); forward;
+function GetAssignPCD(token: integer; symbol: symbolType_t): Integer; forward;
+procedure LeadingSuspend; forward;
+procedure LeadingTerminate; forward;
+function EvalConstExpression: Integer; forward;
+procedure LeadingRestart; forward;
+procedure EvalExpression; forward;
+procedure ExprLevA; forward;
+procedure ExprLevB; forward;
+procedure ExprLevC; forward;
+procedure ExprLevD; forward;
+procedure ExprLevE; forward;
+procedure ExprLevF; forward;
+procedure ExprLevG; forward;
+procedure ExprLevH; forward;
+procedure ExprLevI; forward;
+procedure ExprLevJ; forward;
+procedure ExprFactor; forward;
+procedure ConstExprFactor; forward;
+procedure SendExprCommand(const pcd: integer); forward;
+procedure PushExStk(const value: integer); forward;
+function PopExStk: integer; forward;
+function TokenToPCD(token: integer): integer; forward;
+function GetPushVarPCD(const symType: symbolType_t): Integer; forward;
+function GetIncDecPCD(token: integer; symbol: symbolType_t): Integer; forward;
+function DemandSymbol(const name: string): PsymbolNode_t; forward;
+
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// PA_Parse
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-procedure PA_Parse;
-begin
-  pa_ScriptCount := 0;
-  pa_OpenScriptCount := 0;
-  pa_MapVarCount := 0;
-  pa_WorldVarCount := 0;
-  TK_NextToken;
-  Outside;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// Outside
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-procedure Outside;
-var
-  done: boolean;
-begin
-  done := false;
-  while not done do
-  begin
-    case tk_Token of
-      TK_EOF:
-        done := true;
-      TK_SCRIPT:
-        OuterScript;
-      TK_INT,
-      TK_STR:
-        OuterMapVar;
-      TK_WORLD:
-        OuterWorldVar;
-      TK_SPECIAL:
-        OuterSpecialDef;
-      TK_NUMBERSIGN:
-        begin
-          TK_NextToken;
-          case tk_Token of
-            TK_DEFINE:
-              OuterDefine;
-            TK_INCLUDE:
-              OuterInclude;
-          else
-            ERR_Exit(ERR_INVALID_DIRECTIVE, True, '', []);
-          end;
-        end;
-    else
-      ERR_Exit(ERR_INVALID_DECLARATOR, True, '', []);
-    end;
-  end;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 //
 // OuterScript
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure OuterScript;
 var
   scriptNumber: integer;
   sym: PsymbolNode_t;
 begin
-  MS_Message(MSG_DEBUG, '---- OuterScript ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- OuterScript ----'#13#10, []);
   BreakIndex := 0;
   CaseIndex := 0;
   StatementLevel := 0;
@@ -266,11 +283,11 @@ begin
         ERR_Exit(ERR_TOO_MANY_SCRIPT_ARGS, True, '', []);
     end;
     MS_Message(MSG_DEBUG, 'Script type: CLOSED (%d %s)'#13#10,
-      ScriptVarCount, decide(ScriptVarCount = 1, 'arg', 'args'));
+      [ScriptVarCount, decide(ScriptVarCount = 1, 'arg', 'args')]);
   end
   else if tk_Token = TK_OPEN then
   begin
-    MS_Message(MSG_DEBUG, 'Script type: OPEN'#13#10);
+    MS_Message(MSG_DEBUG, 'Script type: OPEN'#13#10, []);
     scriptNumber := scriptNumber + OPEN_SCRIPTS_BASE;
     Inc(pa_OpenScriptCount);
   end
@@ -294,7 +311,7 @@ procedure OuterMapVar;
 var
   sym: PsymbolNode_t;
 begin
-  MS_Message(MSG_DEBUG, '---- OuterMapVar ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- OuterMapVar ----'#13#10, []);
   repeat
     if pa_MapVarCount = MAX_MAP_VARIABLES then
       ERR_Exit(ERR_TOO_MANY_MAP_VARS, True, '', []);
@@ -324,7 +341,7 @@ var
   index: integer;
   sym: PsymbolNode_t;
 begin
-  MS_Message(MSG_DEBUG, '---- OuterWorldVar ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- OuterWorldVar ----'#13#10, []);
   if TK_NextToken <> TK_INT then
     TK_TokenMustBe(TK_STR, ERR_BAD_VAR_TYPE);
   repeat
@@ -361,7 +378,7 @@ var
   special: integer;
   sym: PsymbolNode_t;
 begin
-  MS_Message(MSG_DEBUG, '---- OuterSpecialDef ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- OuterSpecialDef ----'#13#10, []);
   repeat
     TK_NextTokenMustBe(TK_NUMBER, ERR_MISSING_SPEC_VAL);
     special := tk_Number;
@@ -395,7 +412,7 @@ var
   value: integer;
   sym: PsymbolNode_t;
 begin
-  MS_Message(MSG_DEBUG, '---- OuterDefine ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- OuterDefine ----'#13#10, []);
   TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
   if SY_FindGlobal(tk_Text) <> nil then
   begin  // Redefined
@@ -417,9 +434,9 @@ end;
 
 procedure OuterInclude;
 begin
-  MS_Message(MSG_DEBUG, '---- OuterInclude ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- OuterInclude ----'#13#10, []);
   TK_NextTokenMustBe(TK_STRING, ERR_STRING_LIT_NOT_FOUND);
-  TK_Include(tk_Text);
+  TK_DoInclude(tk_Text);
   TK_NextToken;
 end;
 
@@ -529,7 +546,7 @@ procedure LeadingVarDeclare;
 var
   sym: PsymbolNode_t;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingVarDeclare ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingVarDeclare ----'#13#10, []);
   repeat
     if ScriptVarCount = MAX_SCRIPT_VARIABLES then
       ERR_Exit(ERR_TOO_MANY_SCRIPT_VARS, True, '', []);
@@ -559,9 +576,9 @@ var
   i: integer;
   argCount: integer;
   specialValue: integer;
-  direct; boolean;
+  direct: boolean;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingLineSpecial ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingLineSpecial ----'#13#10, []);
   argCount := tk_SpecialArgCount;
   specialValue := tk_SpecialValue;
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
@@ -642,13 +659,13 @@ end;
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
-procedure ProcessInternFunc(symbolNode_t *sym)
+procedure ProcessInternFunc(const sym: PsymbolNode_t);
 var
   i: integer;
   argCount: integer;
   direct: boolean;
 begin
-  MS_Message(MSG_DEBUG, '---- ProcessInternFunc ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- ProcessInternFunc ----'#13#10, []);
   argCount := sym.info.internFunc.argCount;
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   if TK_NextToken = TK_CONST then
@@ -694,20 +711,21 @@ end;
 procedure LeadingPrint;
 var
   printCmd: Integer;
-  stmtToken: tokenType_t;
+  stmtToken: integer;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingPrint ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingPrint ----'#13#10, []);
   stmtToken := tk_Token; // Will be TK_PRINT or TK_PRINTBOLD
   PC_AppendCmd(PCD_BEGINPRINT);
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   repeat
+    printCmd := PCD_NOP; // Shut up compiler warning
     case TK_NextCharacter of
-      's': // string
+      Ord('s'): // string
         printCmd := PCD_PRINTSTRING;
-      'i', // integer
-      'd': // decimal
+      Ord('i'), // integer
+      Ord('d'): // decimal
         printCmd := PCD_PRINTNUMBER;
-      'c': // character
+      Ord('c'): // character
         printCmd := PCD_PRINTCHARACTER;
     else
       ERR_Exit(ERR_UNKNOWN_PRTYPE, True, '', []);
@@ -721,7 +739,7 @@ begin
   if stmtToken = TK_PRINT then
     PC_AppendCmd(PCD_ENDPRINT)
   else
-    PC_AppendCmd(PCD_ENDPRINTBOLD)
+    PC_AppendCmd(PCD_ENDPRINTBOLD);
   TK_NextToken;
 end;
 
@@ -736,7 +754,7 @@ var
   jumpAddrPtr1: integer;
   jumpAddrPtr2: integer;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingIf ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingIf ----'#13#10, []);
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   TK_NextToken;
   EvalExpression;
@@ -780,11 +798,11 @@ end;
 
 procedure LeadingWhileUntil;
 var
-  stmtToken: tokenType_t;
+  stmtToken: integer;
   topAddr: integer;
   outAddrPtr: integer;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingWhileUntil ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingWhileUntil ----'#13#10, []);
   stmtToken := tk_Token;
   topAddr := pc_Address;
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
@@ -819,9 +837,9 @@ procedure LeadingDo;
 var
   topAddr: integer;
   exprAddr: integer;
-  stmtToken: tokenType_t;
+  stmtToken: integer;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingDo ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingDo ----'#13#10, []);
   topAddr := pc_Address;
   TK_NextToken;
   if not ProcessStatement(STMT_DO) then
@@ -858,7 +876,7 @@ var
   cInfo: PcaseInfo_t;
   defaultAddress: integer;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingSwitch ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingSwitch ----'#13#10, []);
 
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   TK_NextToken;
@@ -914,7 +932,7 @@ end;
 
 procedure LeadingCase;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingCase ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingCase ----'#13#10, []);
   TK_NextToken;
   PushCase(EvalConstExpression, False);
   TK_TokenMustBe(TK_COLON, ERR_MISSING_COLON);
@@ -929,7 +947,7 @@ end;
 
 procedure LeadingDefault;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingDefault ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingDefault ----'#13#10, []);
   TK_NextTokenMustBe(TK_COLON, ERR_MISSING_COLON);
   PushCase(0, True);
   TK_NextToken;
@@ -1003,7 +1021,7 @@ end;
 
 procedure LeadingBreak;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingBreak ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingBreak ----'#13#10, []);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_GOTO);
   PushBreak;
@@ -1075,7 +1093,7 @@ end;
 
 procedure LeadingContinue;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingContinue ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingContinue ----'#13#10, []);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_GOTO);
   PushContinue;
@@ -1142,12 +1160,12 @@ end;
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-procedure LeadingVarAssign(const sym: PsymbolNode_t);
+procedure LeadingVarAssign(sym: PsymbolNode_t);
 var
   done: boolean;
-  assignToken: tokenType_t;
+  assignToken: integer;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingVarAssign ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingVarAssign ----'#13#10, []);
   done := false;
   repeat
     TK_NextToken; // Fetch assignment operator
@@ -1159,7 +1177,7 @@ begin
     end
     else
     begin  // Normal operator
-      if not TK_Member(AssignOps) then
+      if not TK_Member(@AssignOps) then
         ERR_Exit(ERR_MISSING_ASSIGN_OP, True, '', []);
       assignToken := tk_Token;
       TK_NextToken;
@@ -1217,10 +1235,10 @@ const
     (token: TK_MODASSIGN; symbol: SY_SCRIPTVAR; pcd: PCD_MODSCRIPTVAR),
     (token: TK_MODASSIGN; symbol: SY_MAPVAR;    pcd: PCD_MODMAPVAR),
     (token: TK_MODASSIGN; symbol: SY_WORLDVAR;  pcd: PCD_MODWORLDVAR),
-    (token: TK_NONE;      symbol: 0;            pcd: 0)
+    (token: TK_NONE)
   );
 
-function GetAssignPCD(token: integer, symbolType_t symbol): Integer;
+function GetAssignPCD(token: integer; symbol: symbolType_t): Integer;
 var
   i: integer;
 begin
@@ -1245,7 +1263,7 @@ end;
 
 procedure LeadingSuspend;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingSuspend ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingSuspend ----'#13#10, []);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_SUSPEND);
   TK_NextToken;
@@ -1259,7 +1277,7 @@ end;
 
 procedure LeadingTerminate;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingTerminate ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingTerminate ----'#13#10, []);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_TERMINATE);
   TK_NextToken;
@@ -1273,7 +1291,7 @@ end;
 
 procedure LeadingRestart;
 begin
-  MS_Message(MSG_DEBUG, '---- LeadingRestart ----'#13#10);
+  MS_Message(MSG_DEBUG, '---- LeadingRestart ----'#13#10, []);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   PC_AppendCmd(PCD_RESTART);
   TK_NextToken;
@@ -1373,7 +1391,7 @@ var
   token: integer;
 begin
   ExprLevG;
-  while TK_Member(LevFOps) do
+  while TK_Member(@LevFOps) do
   begin
     token := tk_Token;
     TK_NextToken;
@@ -1388,7 +1406,7 @@ var
   token: integer;
 begin
   ExprLevH;
-  while TK_Member(LevGOps) do
+  while TK_Member(@LevGOps) do
   begin
     token := tk_Token;
     TK_NextToken;
@@ -1403,7 +1421,7 @@ var
   token: integer;
 begin
   ExprLevI;
-  while TK_Member(LevHOps) do
+  while TK_Member(@LevHOps) do
   begin
     token := tk_Token;
     TK_NextToken;
@@ -1418,7 +1436,7 @@ var
   token: integer;
 begin
   ExprLevJ;
-  while TK_Member(LevIOps) do
+  while TK_Member(@LevIOps) do
   begin
     token := tk_Token;
     TK_NextToken;
@@ -1445,7 +1463,7 @@ begin
     ExprFactor;
   if unaryMinus then
     SendExprCommand(PCD_UNARYMINUS);
-  while TK_Member(LevJOps) do
+  while TK_Member(@LevJOps) do
   begin
     token := tk_Token;
     TK_NextToken;
@@ -1460,7 +1478,7 @@ end;
 procedure ExprFactor;
 var
   sym: PsymbolNode_t;
-  opToken: tokenType_t;
+  opToken: integer;
 begin
   case tk_Token of
     TK_STRING:
@@ -1605,17 +1623,17 @@ begin
         PushExStk(PopExStk mod operand2);
       end;
     PCD_EQ:
-      PushExStk(PopExStk = PopExStk);
+      PushExStk(intval(PopExStk = PopExStk));
     PCD_NE:
-      PushExStk(PopExStk <> PopExStk);
+      PushExStk(intval(PopExStk <> PopExStk));
     PCD_LT:
-      PushExStk(PopExStk >= PopExStk);
+      PushExStk(intval(PopExStk >= PopExStk));
     PCD_GT:
-      PushExStk(PopExStk <= PopExStk);
+      PushExStk(intval(PopExStk <= PopExStk));
     PCD_LE:
-      PushExStk(PopExStk > PopExStk);
+      PushExStk(intval(PopExStk > PopExStk));
     PCD_GE:
-      PushExStk(PopExStk < PopExStk);
+      PushExStk(intval(PopExStk < PopExStk));
     PCD_ANDLOGICAL:
       PushExStk(PopExStk and PopExStk);
     PCD_ORLOGICAL:
@@ -1673,11 +1691,11 @@ begin
   result := ExprStack[ExprStackIndex];
 end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // TokenToPCD
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 type
   operatorLookup_t = record
@@ -1750,18 +1768,17 @@ end;
 
 const
   NUM_INCDEC_LOOKUP = 7;
-  incDecLookup: array[0..] of Lookup_t = (
+  incDecLookup: array[0..NUM_INCDEC_LOOKUP - 1] of Lookup_t = (
     (token: TK_INC;   symbol: SY_SCRIPTVAR; pcd: PCD_INCSCRIPTVAR),
     (token: TK_INC;   symbol: SY_MAPVAR;    pcd: PCD_INCMAPVAR),
     (token: TK_INC;   symbol: SY_WORLDVAR;  pcd: PCD_INCWORLDVAR),
     (token: TK_DEC;   symbol: SY_SCRIPTVAR; pcd: PCD_DECSCRIPTVAR),
     (token: TK_DEC;   symbol: SY_MAPVAR;    pcd: PCD_DECMAPVAR),
     (token: TK_DEC;   symbol: SY_WORLDVAR;  pcd: PCD_DECWORLDVAR),
-    (token: TK_NONE;  symbol: 0;            pcd: 0)
+    (token: TK_NONE)
   );
 
-function GetIncDecPCD(token: integer, symbolType_t symbol): Integer;
-var
+function GetIncDecPCD(token: integer; symbol: symbolType_t): Integer;var
   i: integer;
 begin
   i := 0;
@@ -1777,17 +1794,76 @@ begin
   result := PCD_NOP;
 end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // DemandSymbol
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 function DemandSymbol(const name: string): PsymbolNode_t;
 begin
   result := SY_Find(name);
   if result = nil then
     ERR_Exit(ERR_UNKNOWN_IDENTIFIER, True, 'Identifier: %s', [name]);
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// Outside
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure Outside;
+var
+  done: boolean;
+begin
+  done := false;
+  while not done do
+  begin
+    case tk_Token of
+      TK_EOF:
+        done := true;
+      TK_SCRIPT:
+        OuterScript;
+      TK_INT,
+      TK_STR:
+        OuterMapVar;
+      TK_WORLD:
+        OuterWorldVar;
+      TK_SPECIAL:
+        OuterSpecialDef;
+      TK_NUMBERSIGN:
+        begin
+          TK_NextToken;
+          case tk_Token of
+            TK_DEFINE:
+              OuterDefine;
+            TK_INCLUDE:
+              OuterInclude;
+          else
+            ERR_Exit(ERR_INVALID_DIRECTIVE, True, '', []);
+          end;
+        end;
+    else
+      ERR_Exit(ERR_INVALID_DECLARATOR, True, '', []);
+    end;
+  end;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// PA_Parse
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure PA_Parse;
+begin
+  pa_ScriptCount := 0;
+  pa_OpenScriptCount := 0;
+  pa_MapVarCount := 0;
+  pa_WorldVarCount := 0;
+  TK_NextToken;
+  Outside;
 end;
 
 end.

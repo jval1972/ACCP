@@ -94,7 +94,15 @@ type
     hasReturnValue: boolean;
   end;
 
+procedure SY_Init;
+
+procedure SY_FreeLocals;
+
 function SY_InsertGlobal(const name: string; const typ: symbolType_t): PsymbolNode_t;
+
+function SY_InsertLocal(const name: string; const typ: symbolType_t): PsymbolNode_t;
+
+function SY_Find(const name: string): PsymbolNode_t;
 
 function SY_FindGlobal(const name: string): PsymbolNode_t;
 

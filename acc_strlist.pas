@@ -37,9 +37,13 @@ type
     address: integer;
   end;
 
+procedure STR_Init;
+
 procedure STR_WriteStrings;
 
 procedure STR_WriteList;
+
+function STR_Find(const name: string): Integer;
 
 implementation
 

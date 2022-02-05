@@ -157,7 +157,13 @@ var
   pc_BufferPtr: PByteArray;
   pc_ScriptCount: integer;
 
+procedure PC_OpenObject(const name: string; const size: Integer; const flags: integer);
+
 procedure PC_CloseObject;
+
+procedure PC_AddScript(const number: integer; const argCount: integer);
+
+procedure PC_AppendCmd(const command: integer);
 
 procedure PC_Append(const buffer: Pointer; const size: integer);
 
