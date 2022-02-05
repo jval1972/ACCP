@@ -315,7 +315,7 @@ begin
    end;
   STR_WriteList;
   if not MS_SaveFile(ObjectName, pc_Buffer, pc_Address) then
-    ERR_Exit(ERR_SAVE_OBJECT_FAILED, False, '');
+    ERR_Exit(ERR_SAVE_OBJECT_FAILED, False, '', []);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -327,7 +327,7 @@ end;
 procedure Append(const buffer: Pointer; const size: integer);
 begin
   if pc_Address + size > BufferSize then
-    ERR_Exit(ERR_PCODE_BUFFER_OVERFLOW, False, '');
+    ERR_Exit(ERR_PCODE_BUFFER_OVERFLOW, False, '', []);
 
   memcpy(pc_BufferPtr, buffer, size);
   pc_BufferPtr := @pc_BufferPtr[size];
@@ -378,7 +378,7 @@ end;
 procedure DoWrite(const buffer: Pointer; const size, address: integer);
 begin
   if address + size > BufferSize then
-    ERR_Exit(ERR_PCODE_BUFFER_OVERFLOW, false, '');
+    ERR_Exit(ERR_PCODE_BUFFER_OVERFLOW, false, '', []);
 
   memcpy(@pc_Buffer[address], buffer, size);
 end;
@@ -427,7 +427,7 @@ end;
 procedure Skip(const size: integer);
 begin
   if pc_Address + size > BufferSize then
-    ERR_Exit(ERR_PCODE_BUFFER_OVERFLOW, False, '');
+    ERR_Exit(ERR_PCODE_BUFFER_OVERFLOW, False, '', []);
 
   pc_BufferPtr := @pc_BufferPtr[size];
   pc_Address := pc_Address + size;
@@ -456,7 +456,7 @@ var
   script: PscriptInfo_t;
 begin
   if pc_ScriptCount = MAX_SCRIPT_COUNT then
-    ERR_Exit(ERR_TOO_MANY_SCRIPTS, true, '');
+    ERR_Exit(ERR_TOO_MANY_SCRIPTS, true, '', []);
 
   script := @ScriptInfo[pc_ScriptCount];
   script.number := number;

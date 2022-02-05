@@ -27,6 +27,8 @@
 
 {$I Doom32.inc}
 
+unit acc_error;
+
 interface
 
 const
@@ -101,6 +103,8 @@ const
   ERR_UNKNOWN_PRTYPE = 77;
   ERR_BAD_CHARACTER = 78;
 
+procedure ERR_Exit(error: integer; info: boolean; fmt: string; args: array of const);
+
 implementation
   
 const
@@ -116,7 +120,7 @@ type
   end;
 
 const
-  NUMERRORNAME = 71;
+  NUMERRORNAME = 69;
 
 var
   ErrorNames: array[0..NUMERRORNAME - 1] of errormessage_t = (
@@ -195,12 +199,11 @@ var
 //
 // ERR_Exit
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-procedure ERR_Exit(error: ineteger; info: boolean; fmt: string; args: array of const = []);
+procedure ERR_Exit(error: integer; info: boolean; fmt: string; args: array of const);
 var
   workString: string;
-  va_list argPtr;
   errFile: file;
 begin
   errFile := fopen(ErrorFileName, 'w');

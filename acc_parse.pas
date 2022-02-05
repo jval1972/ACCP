@@ -212,11 +212,11 @@ begin
             TK_INCLUDE:
               OuterInclude;
           else
-            ERR_Exit(ERR_INVALID_DIRECTIVE, True, '');
+            ERR_Exit(ERR_INVALID_DIRECTIVE, True, '', []);
           end;
         end;
     else
-      ERR_Exit(ERR_INVALID_DECLARATOR, True, '');
+      ERR_Exit(ERR_INVALID_DECLARATOR, True, '', []);
     end;
   end;
 end;
@@ -263,7 +263,7 @@ begin
       until tk_Token <> TK_COMMA;
       TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
       if ScriptVarCount > 3 then
-        ERR_Exit(ERR_TOO_MANY_SCRIPT_ARGS, True, '');
+        ERR_Exit(ERR_TOO_MANY_SCRIPT_ARGS, True, '', []);
     end;
     MS_Message(MSG_DEBUG, 'Script type: CLOSED (%d %s)'#13#10,
       ScriptVarCount, decide(ScriptVarCount = 1, 'arg', 'args'));
@@ -275,11 +275,11 @@ begin
     Inc(pa_OpenScriptCount);
   end
   else
-    ERR_Exit(ERR_BAD_SCRIPT_DECL, true, '');
+    ERR_Exit(ERR_BAD_SCRIPT_DECL, true, '', []);
   PC_AddScript(scriptNumber, ScriptVarCount);
   TK_NextToken;
   if not ProcessStatement(STMT_SCRIPT) then
-    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '', []);
   PC_AppendCmd(PCD_TERMINATE);
   inc(pa_ScriptCount);
 end;
@@ -297,7 +297,7 @@ begin
   MS_Message(MSG_DEBUG, '---- OuterMapVar ----'#13#10);
   repeat
     if pa_MapVarCount = MAX_MAP_VARIABLES then
-      ERR_Exit(ERR_TOO_MANY_MAP_VARS, True, '');
+      ERR_Exit(ERR_TOO_MANY_MAP_VARS, True, '', []);
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
     if SY_FindGlobal(tk_Text) <> nil then
     begin  // Redefined
@@ -331,7 +331,7 @@ begin
     TK_NextTokenMustBe(TK_NUMBER, ERR_MISSING_WVAR_INDEX);
     if tk_Number >= MAX_WORLD_VARIABLES then
     begin
-      ERR_Exit(ERR_BAD_WVAR_INDEX, True, '');
+      ERR_Exit(ERR_BAD_WVAR_INDEX, True, '', []);
     end;
     index := tk_Number;
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_WVAR_COLON);
@@ -432,7 +432,7 @@ end;
 function ProcessStatement(const owner: statement_t): boolean;
 begin
   if StatementIndex = MAX_STATEMENT_DEPTH then
-    ERR_Exit(ERR_STATEMENT_OVERFLOW, True, '');
+    ERR_Exit(ERR_STATEMENT_OVERFLOW, True, '', []);
 
   StatementHistory[StatementIndex] := owner;
   Inc(StatementIndex);
@@ -467,27 +467,27 @@ begin
     TK_CASE:
       begin
         if owner <> STMT_SWITCH then
-          ERR_Exit(ERR_CASE_NOT_IN_SWITCH, True, '');
+          ERR_Exit(ERR_CASE_NOT_IN_SWITCH, True, '', []);
         LeadingCase;
       end;
     TK_DEFAULT:
       begin
         if owner <> STMT_SWITCH then
-          ERR_Exit(ERR_DEFAULT_NOT_IN_SWITCH, True, '');
+          ERR_Exit(ERR_DEFAULT_NOT_IN_SWITCH, True, '', []);
         if DefaultInCurrent then
-          ERR_Exit(ERR_MULTIPLE_DEFAULT, True, '');
+          ERR_Exit(ERR_MULTIPLE_DEFAULT, True, '', []);
         LeadingDefault;
       end;
     TK_BREAK:
       begin
         if not BreakAncestor then
-          ERR_Exit(ERR_MISPLACED_BREAK, True, '');
+          ERR_Exit(ERR_MISPLACED_BREAK, True, '', []);
         LeadingBreak;
       end;
     TK_CONTINUE:
       begin
         if not ContinueAncestor then
-          ERR_Exit(ERR_MISPLACED_CONTINUE, True, '');
+          ERR_Exit(ERR_MISPLACED_CONTINUE, True, '', []);
         LeadingContinue;
       end;
     TK_LBRACE:
@@ -532,7 +532,7 @@ begin
   MS_Message(MSG_DEBUG, '---- LeadingVarDeclare ----'#13#10);
   repeat
     if ScriptVarCount = MAX_SCRIPT_VARIABLES then
-      ERR_Exit(ERR_TOO_MANY_SCRIPT_VARS, True, '');
+      ERR_Exit(ERR_TOO_MANY_SCRIPT_VARS, True, '', []);
     TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INVALID_IDENTIFIER);
     if SY_FindLocal(tk_Text) <> nil then
     begin  // Redefined
@@ -580,7 +580,7 @@ begin
   i := 0;
   repeat
     if i = argCount then
-      ERR_Exit(ERR_BAD_LSPEC_ARG_COUNT, True, '');
+      ERR_Exit(ERR_BAD_LSPEC_ARG_COUNT, True, '', []);
     TK_NextToken;
     if direct then
       PC_AppendLong(EvalConstExpression)
@@ -589,7 +589,7 @@ begin
     inc(i);
   until tk_Token <> TK_COMMA;
   if i <> argCount then
-    ERR_Exit(ERR_BAD_LSPEC_ARG_COUNT, True, nil);
+    ERR_Exit(ERR_BAD_LSPEC_ARG_COUNT, True, '', []);
   TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
   TK_NextTokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   if not direct then
@@ -655,7 +655,7 @@ begin
   begin
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_COLON);
     if sym.info.internFunc.directCommand = PCD_NOP then
-      ERR_Exit(ERR_NO_DIRECT_VER, True, '');
+      ERR_Exit(ERR_NO_DIRECT_VER, True, '', []);
     PC_AppendCmd(sym.info.internFunc.directCommand);
     direct := True;
     TK_NextToken;
@@ -668,7 +668,7 @@ begin
     TK_Undo; // Adjust for first expression
     repeat
       if i = argCount then
-        ERR_Exit(ERR_BAD_ARG_COUNT, True, '');
+        ERR_Exit(ERR_BAD_ARG_COUNT, True, '', []);
       TK_NextToken;
       if direct then
         PC_AppendLong(EvalConstExpression)
@@ -678,7 +678,7 @@ begin
     until tk_Token <> TK_COMMA;
   end;
   if i <> argCount then
-    ERR_Exit(ERR_BAD_ARG_COUNT, True, '');
+    ERR_Exit(ERR_BAD_ARG_COUNT, True, '', []);
   TK_TokenMustBe(TK_RPAREN, ERR_MISSING_RPAREN);
   if not direct then
     PC_AppendCmd(sym.info.internFunc.stackCommand);
@@ -710,7 +710,7 @@ begin
       'c': // character
         printCmd := PCD_PRINTCHARACTER;
     else
-      ERR_Exit(ERR_UNKNOWN_PRTYPE, True, '');
+      ERR_Exit(ERR_UNKNOWN_PRTYPE, True, '', []);
     end;
     TK_NextTokenMustBe(TK_COLON, ERR_MISSING_COLON);
     TK_NextToken;
@@ -746,7 +746,7 @@ begin
   PC_SkipLong;
   TK_NextToken;
   if not ProcessStatement(STMT_IF) then
-    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '', []);
   if tk_Token = TK_ELSE then
   begin
     PC_AppendCmd(PCD_GOTO);
@@ -755,7 +755,7 @@ begin
     PC_WriteLong(pc_Address, jumpAddrPtr1);
     TK_NextToken;
     if not ProcessStatement(STMT_ELSE) then
-      ERR_Exit(ERR_INVALID_STATEMENT, True, '');
+      ERR_Exit(ERR_INVALID_STATEMENT, True, '', []);
     PC_WriteLong(pc_Address, jumpAddrPtr2);
   end
   else
@@ -799,7 +799,7 @@ begin
   PC_SkipLong;
   TK_NextToken;
   if not ProcessStatement(STMT_WHILEUNTIL) then
-    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '', []);
   PC_AppendCmd(PCD_GOTO);
   PC_AppendLong(topAddr);
 
@@ -825,9 +825,9 @@ begin
   topAddr := pc_Address;
   TK_NextToken;
   if not ProcessStatement(STMT_DO) then
-    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '', []);
   if (tk_Token <> TK_WHILE) and (tk_Token <> TK_UNTIL) then
-    ERR_Exit(ERR_BAD_DO_STATEMENT, True, '');
+    ERR_Exit(ERR_BAD_DO_STATEMENT, True, '', []);
   stmtToken := tk_Token;
   TK_NextTokenMustBe(TK_LPAREN, ERR_MISSING_LPAREN);
   exprAddr := pc_Address;
@@ -871,7 +871,7 @@ begin
 
   TK_NextToken;
   if not ProcessStatement(STMT_SWITCH) then
-    ERR_Exit(ERR_INVALID_STATEMENT, True, '');
+    ERR_Exit(ERR_INVALID_STATEMENT, True, '', []);
 
   PC_AppendCmd(PCD_GOTO);
   outAddrPtr := pc_Address;
@@ -944,7 +944,7 @@ end;
 procedure PushCase(const value: integer; const isDefault: boolean);
 begin
   if CaseIndex = MAX_CASE then
-    ERR_Exit(ERR_CASE_OVERFLOW, True, '');
+    ERR_Exit(ERR_CASE_OVERFLOW, True, '', []);
   CaseInfo[CaseIndex].level := StatementLevel;
   CaseInfo[CaseIndex].value := value;
   CaseInfo[CaseIndex].isDefault := isDefault;
@@ -1020,7 +1020,7 @@ end;
 procedure PushBreak;
 begin
   if BreakIndex = MAX_CASE then
-    ERR_Exit(ERR_BREAK_OVERFLOW, True, '');
+    ERR_Exit(ERR_BREAK_OVERFLOW, True, '', []);
   BreakInfo[BreakIndex].level := StatementLevel;
   BreakInfo[BreakIndex].addressPtr := pc_Address;
   Inc(BreakIndex);
@@ -1092,7 +1092,7 @@ end;
 procedure PushContinue;
 begin
   if ContinueIndex = MAX_CONTINUE then
-    ERR_Exit(ERR_CONTINUE_OVERFLOW, True, '');
+    ERR_Exit(ERR_CONTINUE_OVERFLOW, True, '', []);
   ContinueInfo[ContinueIndex].level := StatementLevel;
   ContinueInfo[ContinueIndex].addressPtr := pc_Address;
   Inc(ContinueIndex);
@@ -1160,7 +1160,7 @@ begin
     else
     begin  // Normal operator
       if not TK_Member(AssignOps) then
-        ERR_Exit(ERR_MISSING_ASSIGN_OP, True, '');
+        ERR_Exit(ERR_MISSING_ASSIGN_OP, True, '', []);
       assignToken := tk_Token;
       TK_NextToken;
       EvalExpression;
@@ -1172,7 +1172,7 @@ begin
       TK_NextTokenMustBe(TK_IDENTIFIER, ERR_BAD_ASSIGNMENT);
       sym := DemandSymbol(tk_Text);
       if (sym.typ <> SY_SCRIPTVAR) and (sym.typ <> SY_MAPVAR) and (sym.typ <> SY_WORLDVAR) then
-        ERR_Exit(ERR_BAD_ASSIGNMENT, True, '');
+        ERR_Exit(ERR_BAD_ASSIGNMENT, True, '', []);
     end
     else
     begin
@@ -1291,7 +1291,7 @@ begin
   ConstantExpression := True;
   ExprLevA;
   if ExprStackIndex <> 1 then
-    ERR_Exit(ERR_BAD_CONST_EXPR, True, '');
+    ERR_Exit(ERR_BAD_CONST_EXPR, True, '', []);
   result := PopExStk;
 end;
 
@@ -1480,7 +1480,7 @@ begin
         TK_NextToken;
         ExprLevA;
         if tk_Token <> TK_RPAREN then
-          ERR_Exit(ERR_BAD_EXPR, True, '');
+          ERR_Exit(ERR_BAD_EXPR, True, '', []);
         TK_NextToken;
       end;
     TK_NOT:
@@ -1496,7 +1496,7 @@ begin
         TK_NextTokenMustBe(TK_IDENTIFIER, ERR_INCDEC_OP_ON_NON_VAR);
         sym :=  DemandSymbol(tk_Text);
         if (sym.typ <> SY_SCRIPTVAR) and (sym.typ <> SY_MAPVAR) and (sym.typ <> SY_WORLDVAR) then
-          ERR_Exit(ERR_INCDEC_OP_ON_NON_VAR, True, '');
+          ERR_Exit(ERR_INCDEC_OP_ON_NON_VAR, True, '', []);
         PC_AppendCmd(GetIncDecPCD(opToken, sym.typ));
         PC_AppendLong(sym.info.svar.index);
         PC_AppendCmd(GetPushVarPCD(sym.typ));
@@ -1524,7 +1524,7 @@ begin
           SY_INTERNFUNC:
             begin
               if not sym.info.internFunc.hasReturnValue then
-                ERR_Exit(ERR_EXPR_FUNC_NO_RET_VAL, True, '');
+                ERR_Exit(ERR_EXPR_FUNC_NO_RET_VAL, True, '', []);
               ProcessInternFunc(sym);
             end;
         else
@@ -1532,7 +1532,7 @@ begin
         end;
       end;
   else
-    ERR_Exit(ERR_BAD_EXPR, True, '');
+    ERR_Exit(ERR_BAD_EXPR, True, '', []);
   end;
 end;
 
@@ -1554,7 +1554,7 @@ begin
         TK_NextToken;
         ExprLevA;
         if tk_Token <> TK_RPAREN then
-          ERR_Exit(ERR_BAD_CONST_EXPR, True, '');
+          ERR_Exit(ERR_BAD_CONST_EXPR, True, '', []);
         TK_NextToken;
       end;
     TK_NOT:
@@ -1564,7 +1564,7 @@ begin
         SendExprCommand(PCD_NEGATELOGICAL);
       end;
   else
-    ERR_Exit(ERR_BAD_CONST_EXPR, True, '');
+    ERR_Exit(ERR_BAD_CONST_EXPR, True, '', []);
   end;
 end;
 
@@ -1641,7 +1641,7 @@ begin
     PCD_UNARYMINUS:
       PushExStk(-PopExStk);
   else
-    ERR_Exit(ERR_UNKNOWN_CONST_EXPR_PCD, True, '');
+    ERR_Exit(ERR_UNKNOWN_CONST_EXPR_PCD, True, '', []);
   end;
 end;
 
@@ -1654,7 +1654,7 @@ end;
 procedure PushExStk(const value: integer);
 begin
   if ExprStackIndex = EXPR_STACK_DEPTH then
-    ERR_Exit(ERR_EXPR_STACK_OVERFLOW, True, '');
+    ERR_Exit(ERR_EXPR_STACK_OVERFLOW, True, '', []);
   ExprStack[ExprStackIndex] := value;
   Inc(ExprStackIndex);
 end;
@@ -1668,7 +1668,7 @@ end;
 function PopExStk: integer;
 begin
   if ExprStackIndex < 1 then
-    ERR_Exit(ERR_EXPR_STACK_EMPTY, True, '');
+    ERR_Exit(ERR_EXPR_STACK_EMPTY, True, '', []);
   Dec(ExprStackIndex);
   result := ExprStack[ExprStackIndex];
 end;

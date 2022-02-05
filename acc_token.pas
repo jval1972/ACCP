@@ -134,10 +134,13 @@ type
 
 procedure TK_Init;
 
+procedure TK_CloseSource;
+
 implementation
 
 uses
-  acc_common;
+  acc_common,
+  acc_misc;
 
 var
   tk_Token: integer;
@@ -441,7 +444,7 @@ end;
 procedure TK_NextTokenMustBe(const token: integer; const error: integer);
 begin
   if TK_NextToken <> token then
-    ERR_Exit(error, true, '');
+    ERR_Exit(error, True, '', [], []);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -453,7 +456,7 @@ end;
 procedure TK_TokenMustBe(const token: integer; const error: integer);
 begin
   if tk_Token <> token then
-    ERR_Exit(error, true, '');
+    ERR_Exit(error, True, '', []);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
@@ -502,7 +505,7 @@ begin
   while ASCIIToChrCode[Ord(Ch)] in [CHR_LETTER, CHR_NUMBER] do
   begin
     if Length(tk_Text) = MAX_IDENTIFIER_LENGTH then
-      ERR_Exit(ERR_IDENTIFIER_TOO_LONG, True, '');
+      ERR_Exit(ERR_IDENTIFIER_TOO_LONG, True, '', []);
     tk_Text := tk_Text + Ch;
     NextChr;
   end;
@@ -691,7 +694,7 @@ var
 begin
   radix := tk_Num;
   if (radix < 2) or (radix > 36) then
-    ERR_Exit(ERR_BAD_RADIX_CONSTANT, true, '');
+    ERR_Exit(ERR_BAD_RADIX_CONSTANT, True, '', []);
 
   tk_Num := 0;
   while true do
@@ -746,7 +749,7 @@ begin
     if Ch = ASCII_QUOTE then
       break;
     if Length(tk_Text) = MAX_QUOTED_LENGTH then
-      ERR_Exit(ERR_STRING_TOO_LONG, True, '');
+      ERR_Exit(ERR_STRING_TOO_LONG, True, '', []);
 
     tk_Text := tk_Text + Ch;
     NextChr;
@@ -927,7 +930,7 @@ begin
     '~':
       tk_Token := TK_TILDE;
   else
-    ERR_Exit(ERR_BAD_CHARACTER, True, '');
+    ERR_Exit(ERR_BAD_CHARACTER, True, '', []);
   end;
 end;
 

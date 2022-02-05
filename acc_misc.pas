@@ -36,6 +36,14 @@ const
   MSG_VERBOSE = 1;
   MSG_DEBUG = 2;
 
+function MS_LoadFile(const name: string; var buffer: pointer): pointer;
+
+implementation
+
+uses
+  d_delphi,
+  acc_error;
+
 const
   ASCII_SLASH = 47;
   ASCII_BACKSLASH = 92;
@@ -45,7 +53,7 @@ function MS_Alloc(const size: integer; const error: integer): pointer;
 begin
   result := malloc(size);
   if result = nil then
-    ERR_Exit(error, false, '');
+    ERR_Exit(error, false, '', []);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
