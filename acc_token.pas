@@ -570,6 +570,99 @@ end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
+// EvalFixedConstant
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure EvalFixedConstant(const whole: integer);
+var
+  frac: integer;
+  divisor: integer;
+begin
+  frac :=  0;
+  divisor :=  1;
+  while ASCIIToChrCode[Ord(Ch)] = CHR_NUMBER do
+  begin
+    frac := 10 * frac + (Ord(Ch) - Ord('0'));
+    divisor := divisor * 10;
+    NextChr;
+  end;
+  tk_Num := (whole shl 16) + ((frac shl 16) div divisor);
+  tk_Token := TK_NUMBER;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// EvalHexConstant
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure EvalHexConstant;
+begin
+  tk_Num := 0;
+  while ASCIIToHexDigit[Ord(Ch)] <> NON_HEX_DIGIT do
+  begin
+    tk_Num := (tk_Num shl 4) + ASCIIToHexDigit[Ord(Ch)];
+    NextChr;
+  end;
+  tk_Token := TK_NUMBER;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// DigitValue
+//
+// Returns -1 if the digit is not allowed in the specified radix.
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+function DigitValue(digit: char; const radix: integer): integer;
+begin
+  digit := toupper(digit);
+  if (digit < '0') or ((digit > '9') and (digit < 'A')) or (digit > 'Z') then
+  begin
+    result := -1;
+    exit;
+  end;
+  if digit > '9' then
+    digit := Chr(10 + Ord(digit) - Ord('A'))
+  else
+    digit := Chr(Ord(digit) - Ord('0'));
+  if Ord(digit) >= radix then
+    result := -1
+  else
+    result := Ord(digit);
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
+// EvalRadixConstant
+//
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+procedure EvalRadixConstant;
+var
+  radix: integer;
+  digitVal: integer;
+begin
+  radix := tk_Num;
+  if (radix < 2) or (radix > 36) then
+    ERR_Exit(ERR_BAD_RADIX_CONSTANT, True, '', []);
+
+  tk_Num := 0;
+  while true do
+  begin
+    digitVal := DigitValue(Ch, radix);
+    if digitVal = -1 then
+      break;
+    tk_Num := radix * tk_Num + digitVal;
+    NextChr;
+  end;
+  tk_Token := TK_NUMBER;
+end;
+
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+//
 // ProcessNumberToken
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -602,7 +695,7 @@ begin
     exit;
   end;
 
-  if Ch = ASCII_UNDERSCORE then
+  if Ch = Chr(ASCII_UNDERSCORE) then
   begin
     NextChr; // Skip underscore
     EvalRadixConstant;
@@ -610,99 +703,6 @@ begin
   end;
 
   tk_Token := TK_NUMBER;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// EvalFixedConstant
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-procedure EvalFixedConstant(const whole: integer);
-var
-  frac: integer;
-  divisor: integer;
-begin
-  frac :=  0;
-  divisor :=  1;
-  while ASCIIToChrCode[Ord(Ch)] = CHR_NUMBER do
-  begin
-    frac := 10 * frac + (Ord(Ch) - Ord('0'));
-    divisor := divisor * 10;
-    NextChr;
-  end;
-  tk_Num := (whole shl 16) + ((frac shl 16) div divisor);
-  tk_Token := TK_NUMBER;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// EvalHexConstant
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-procedure EvalHexConstant;
-begin
-  tk_Num := 0;
-  while ASCIIToHexDigit[Ord(Ch)] <> NON_HEX_DIGIT do
-  begin
-    tk_Num := (tk_Num shl 4) + ASCIIToHexDigit[Ord(Ch)];
-    NextChr;
-  end;
-  tk_Token := TK_NUMBER;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-//
-// EvalRadixConstant
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-
-procedure EvalRadixConstant;
-var
-  radix: integer;
-  digitVal: integer;
-begin
-  radix := tk_Num;
-  if (radix < 2) or (radix > 36) then
-    ERR_Exit(ERR_BAD_RADIX_CONSTANT, True, '', []);
-
-  tk_Num := 0;
-  while true do
-  begin
-    digitVal := DigitValue(Ch, radix);
-    if digitVal = -1 then
-      break;
-    tk_Num := radix * tk_Num + digitVal;
-    NextChr;
-  end;
-  tk_Token := TK_NUMBER;
-end;
-
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-//
-// DigitValue
-//
-// Returns -1 if the digit is not allowed in the specified radix.
-//
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-function DigitValue(digit: char; const radix: integer): integer;
-begin
-  digit := toupper(digit);
-  if (digit < '0') or ((digit > '9') and (digit < 'A')) or (digit > 'Z') then
-  begin
-    result := -1;
-    exit;
-  end;
-  if digit > '9' then
-    digit := Chr(10 + Ord(digit) - Ord('A'))
-  else
-    digit := Chr(Ord(digit) - Ord('0'));
-  if digit >= radix then
-    result := -1
-  else
-    result := Ord(digit);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -715,9 +715,9 @@ procedure ProcessQuoteToken;
 begin
   tk_Text := '';
   NextChr;
-  while Ch <> EOF_CHARACTER do
+  while Ch <> Chr(EOF_CHARACTER) do
   begin
-    if Ch = ASCII_QUOTE then
+    if Ch = Chr(ASCII_QUOTE) then
       break;
     if Length(tk_Text) = MAX_QUOTED_LENGTH then
       ERR_Exit(ERR_STRING_TOO_LONG, True, '', []);
@@ -726,7 +726,7 @@ begin
     NextChr;
   end;
 
-  if Ch = ASCII_QUOTE then
+  if Ch = Chr(ASCII_QUOTE) then
     NextChr;
 
   tk_Token := TK_STRING;
@@ -745,7 +745,6 @@ begin
   c :=  Ch;
   NextChr;
   case c of
-  begin
     '+':
       case Ch of
         '=':
@@ -797,7 +796,7 @@ begin
           begin
             tk_Token := TK_DIVASSIGN;
             NextChr;
-          end
+          end;
         '/':
           tk_Token := TK_CPPCOMMENT;
         '*':
@@ -916,7 +915,7 @@ var
   first: boolean;
 begin
   first := false;
-  while Ch <> EOF_CHARACTER do
+  while Ch <> Chr(EOF_CHARACTER) do
   begin
     if first and (Ch = '/') then
       break;
@@ -988,7 +987,7 @@ begin
       SkipComment
     else if tk_Token = TK_CPPCOMMENT then
       SkipCPPComment
-    else if (tk_Token = TK_EOF)) and ((NestDepth > 0) then
+    else if (tk_Token = TK_EOF) and (NestDepth > 0) then
       PopNestedSource
     else
       validToken := true;
@@ -1006,7 +1005,7 @@ end;
 procedure TK_NextTokenMustBe(const token: integer; const error: integer);
 begin
   if TK_NextToken <> token then
-    ERR_Exit(error, True, '', [], []);
+    ERR_Exit(error, True, '', []);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
