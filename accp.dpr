@@ -32,6 +32,9 @@ program accp;
 {$APPTYPE CONSOLE}
 
 uses
+  FastMM4 in 'FastMM4.pas',
+  FastMM4Messages in 'FastMM4Messages.pas',
+  d_delphi in 'd_delphi.pas',
   acc in 'acc.pas',
   acc_common in 'acc_common.pas',
   acc_error in 'acc_error.pas',
@@ -40,8 +43,7 @@ uses
   acc_pcode in 'acc_pcode.pas',
   acc_strlist in 'acc_strlist.pas',
   acc_symbol in 'acc_symbol.pas',
-  acc_token in 'acc_token.pas',
-  d_delphi in 'd_delphi.pas';
+  acc_token in 'acc_token.pas';
 
 var
   args: TDStringList;
