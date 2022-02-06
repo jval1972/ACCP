@@ -622,7 +622,11 @@ function strcmp(const s1, s2: string): integer;
 
 function strupper(const S: string): string;
 
+procedure strupperproc(var S: string);
+
 function strlower(const S: string): string;
+
+procedure strlowerproc(var S: string);
 
 function toupper(ch: Char): Char;
 
@@ -3532,6 +3536,24 @@ begin
   end;
 end;
 
+procedure strupperproc(var S: string);
+var
+  Ch: Char;
+  L: Integer;
+  Source: PChar;
+begin
+  L := Length(S);
+  Source := Pointer(S);
+  while L <> 0 do
+  begin
+    Ch := Source^;
+    if (Ch >= 'a') and (Ch <= 'z') then dec(Ch, 32);
+    Source^ := Ch;
+    inc(Source);
+    dec(L);
+  end;
+end;
+
 function strlower(const S: string): string;
 var
   Ch: Char;
@@ -3549,6 +3571,24 @@ begin
     Dest^ := Ch;
     inc(Source);
     inc(Dest);
+    dec(L);
+  end;
+end;
+
+procedure strlowerproc(var S: string);
+var
+  Ch: Char;
+  L: Integer;
+  Source: PChar;
+begin
+  L := Length(S);
+  Source := Pointer(S);
+  while L <> 0 do
+  begin
+    Ch := Source^;
+    if (Ch >= 'A') and (Ch <= 'Z') then inc(Ch, 32);
+    Source^ := Ch;
+    inc(Source);
     dec(L);
   end;
 end;
