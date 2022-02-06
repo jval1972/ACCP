@@ -560,7 +560,7 @@ begin
     sym.info.svar.index := ScriptVarCount;
     Inc(ScriptVarCount);
     TK_NextToken;
-   until tk_Token <> TK_COMMA;
+  until tk_Token <> TK_COMMA;
   TK_TokenMustBe(TK_SEMICOLON, ERR_MISSING_SEMICOLON);
   TK_NextToken;
 end;
@@ -617,11 +617,11 @@ begin
   TK_NextToken;
 end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // LeadingIdentifier
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure LeadingIdentifier;
 var
@@ -1864,6 +1864,7 @@ begin
   pa_WorldVarCount := 0;
   TK_NextToken;
   Outside;
+  SY_FreeGlobals;
 end;
 
 end.

@@ -98,6 +98,8 @@ procedure SY_Init;
 
 procedure SY_FreeLocals;
 
+procedure SY_FreeGlobals;
+
 function SY_InsertGlobal(const name: string; const typ: symbolType_t): PsymbolNode_t;
 
 function SY_InsertLocal(const name: string; const typ: symbolType_t): PsymbolNode_t;
@@ -325,7 +327,7 @@ begin
 
   FreeNodes(root.left);
   FreeNodes(root.right);
-  memfree(Pointer(root), SizeOf(symbolNode_t));
+  MS_Free(Pointer(root), SizeOf(symbolNode_t));
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =

@@ -51,6 +51,8 @@ procedure MS_Message(const typ: integer; const fmt: string; const args: array of
 
 function MS_Alloc(const size: integer; const error: integer): pointer;
 
+procedure MS_Free(var ptr: Pointer; const size: integer);
+
 function MS_LittleULONG(const v: U_LONG): U_LONG;
 
 implementation
@@ -72,6 +74,10 @@ begin
     ERR_Exit(error, false, '', []);
 end;
 
+procedure MS_Free(var ptr: Pointer; const size: integer);
+begin
+  memfree(ptr, size);
+end;
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // MS_LittleUWORD

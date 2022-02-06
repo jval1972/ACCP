@@ -345,7 +345,7 @@ begin
   STR_WriteList;
   if not MS_SaveFile(ObjectName, pc_Buffer, pc_Address) then
     ERR_Exit(ERR_SAVE_OBJECT_FAILED, False, '', []);
-  memfree(pointer(pc_Buffer), BufferSize);
+  MS_Free(pointer(pc_Buffer), BufferSize);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -391,7 +391,7 @@ begin
   pb[len - 1] := 0;
   MS_Message(MSG_DEBUG, 'AS> %06d = ''%s'' (%d bytes)'#13#10, [pc_Address, str, len]);
   Append(pb, len);
-  memfree(Pointer(pb), len);
+  MS_Free(Pointer(pb), len);
 end;
 
 procedure PC_AppendCmd(const command: integer);
@@ -444,7 +444,7 @@ begin
   pb[len - 1] := 0;
   MS_Message(MSG_DEBUG, 'WS> %06d = ''%s'' (%d bytes)'#13#10, [address, str, len]);
   DoWrite(pb, len, address);
-  memfree(Pointer(pb), len);
+  MS_Free(Pointer(pb), len);
 end;
 
 procedure PC_WriteCmd(const command: integer; const address: integer);

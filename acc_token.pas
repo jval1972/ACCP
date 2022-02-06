@@ -392,7 +392,7 @@ procedure PopNestedSource;
 var
   info: PnestInfo_t;
 begin
-  memfree(Pointer(FileStart), Integer(FileEnd) - Integer(FileStart));
+  MS_Free(Pointer(FileStart), Integer(FileEnd) - Integer(FileStart));
   tk_IncludedLines := tk_IncludedLines + tk_Line;
   Dec(NestDepth);
   info := @OpenFiles[NestDepth];
@@ -419,9 +419,9 @@ var
 begin
   if SourceOpen then
   begin
-    memfree(Pointer(FileStart), Integer(FileEnd) - Integer(FileStart));
+    MS_Free(Pointer(FileStart), Integer(FileEnd) - Integer(FileStart));
     for i := 0 to NestDepth - 1 do
-      memfree(Pointer(OpenFiles[i].start), OpenFiles[i].size);
+      MS_Free(Pointer(OpenFiles[i].start), OpenFiles[i].size);
 
     SourceOpen := false;
   end;
@@ -571,16 +571,18 @@ end;
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
 procedure ProcessLetterToken;
+var
+  stmp: string[MAX_IDENTIFIER_LENGTH];
 begin
-  tk_Text := '';
+  stmp := '';
   while ASCIIToChrCode[Ord(Ch)] in [CHR_LETTER, CHR_NUMBER] do
   begin
-    if Length(tk_Text) = MAX_IDENTIFIER_LENGTH then
+    if Length(stmp) = MAX_IDENTIFIER_LENGTH then
       ERR_Exit(ERR_IDENTIFIER_TOO_LONG, True, '', []);
-    tk_Text := tk_Text + Ch;
+    stmp := stmp + Ch;
     NextChr;
   end;
-  tk_Text := strlower(tk_Text);
+  tk_Text := strlower(stmp);
   if not CheckForKeyword and not CheckForLineSpecial and not CheckForConstant then
     tk_Token := TK_IDENTIFIER;
 end;
