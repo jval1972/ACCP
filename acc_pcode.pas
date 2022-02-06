@@ -345,6 +345,7 @@ begin
   STR_WriteList;
   if not MS_SaveFile(ObjectName, pc_Buffer, pc_Address) then
     ERR_Exit(ERR_SAVE_OBJECT_FAILED, False, '', []);
+  memfree(pointer(pc_Buffer), BufferSize);
 end;
 
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
