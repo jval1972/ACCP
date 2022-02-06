@@ -352,7 +352,7 @@ end;
 //
 // PC_Append functions
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure Append(const buffer: Pointer; const size: integer);
 begin

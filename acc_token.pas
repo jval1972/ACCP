@@ -40,7 +40,7 @@ const
 
 const
   TK_NONE = 0;
-  TK_EOF = 1;  
+  TK_EOF = 1;
   TK_IDENTIFIER = 2;  // VALUE: (char *) tk_Text
   TK_STRING = 3;  // VALUE: (char *) tk_Text
   TK_NUMBER = 4;  // VALUE: (int) tk_Num
@@ -382,11 +382,11 @@ begin
   NextChr;
 end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // PopNestedSource
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure PopNestedSource;
 var
@@ -432,7 +432,7 @@ end;
 //
 // TK_NextCharacter
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 function TK_NextCharacter: integer;
 begin
@@ -450,7 +450,7 @@ end;
 //
 // TK_Member
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 function TK_Member(const list: PIntegerArray): boolean;
 var
@@ -469,11 +469,11 @@ begin
   result := false;
 end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // TK_Undo
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure TK_Undo;
 begin
@@ -509,7 +509,7 @@ end;
 //
 // CheckForLineSpecial
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 function CheckForLineSpecial: boolean;
 var
@@ -564,11 +564,11 @@ begin
   result := true;
 end;
 
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // ProcessLetterToken
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure ProcessLetterToken;
 var
@@ -755,7 +755,7 @@ end;
 //
 // ProcessSpecialToken
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure ProcessSpecialToken;
 var
@@ -1011,7 +1011,7 @@ begin
     else
       validToken := true;
   until validToken;
-  
+
   result := tk_Token;
 end;
 

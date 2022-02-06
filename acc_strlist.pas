@@ -104,7 +104,7 @@ end;
 //
 // Writes all the strings to the p-code buffer.
 //
-// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+// = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 procedure STR_WriteStrings;
 var
