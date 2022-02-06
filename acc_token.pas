@@ -363,6 +363,7 @@ begin
   info.name := tk_SourceName;
   info.start := FileStart;
   info.finish := FileEnd;
+  info.size := Integer(FileEnd) - Integer(FileStart);
   info.position := FilePtr;
   info.line := tk_Line;
   info.incLineNumber := IncLineNumber;
@@ -371,7 +372,6 @@ begin
   tk_SourceName := tk_SourceName + fileName;
   size := MS_LoadFile(tk_SourceName, p);
   FileStart := p;
-  info.size := size;
   FileEnd := FileStart;
   Inc(FileEnd, size);
   FilePtr := FileStart;
