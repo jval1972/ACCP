@@ -39,20 +39,60 @@ const
   MSG_VERBOSE = 1;
   MSG_DEBUG = 2;
 
+//==============================================================================
+//
+// MS_LoadFile
+//
+//==============================================================================
 function MS_LoadFile(const name: string; var buffer: pointer): integer;
 
+//==============================================================================
+//
+// MS_SaveFile
+//
+//==============================================================================
 function MS_SaveFile(const name: string; const buffer: pointer; const len: integer): boolean;
 
+//==============================================================================
+//
+// MS_StripFileExt
+//
+//==============================================================================
 procedure MS_StripFileExt(var name: string);
 
+//==============================================================================
+//
+// MS_SuggestFileExt
+//
+//==============================================================================
 procedure MS_SuggestFileExt(var base: string; const extension: string);
 
+//==============================================================================
+//
+// MS_Message
+//
+//==============================================================================
 procedure MS_Message(const typ: integer; const fmt: string; const args: array of const);
 
+//==============================================================================
+//
+// MS_Alloc
+//
+//==============================================================================
 function MS_Alloc(const size: integer; const error: integer): pointer;
 
+//==============================================================================
+//
+// MS_Free
+//
+//==============================================================================
 procedure MS_Free(var ptr: Pointer; const size: integer);
 
+//==============================================================================
+//
+// MS_LittleULONG
+//
+//==============================================================================
 function MS_LittleULONG(const v: U_LONG): U_LONG;
 
 implementation
@@ -67,6 +107,11 @@ const
   ASCII_BACKSLASH = 92;
   O_BINARY = 0;
 
+//==============================================================================
+//
+// MS_Alloc
+//
+//==============================================================================
 function MS_Alloc(const size: integer; const error: integer): pointer;
 begin
   result := mallocz(size);
@@ -74,10 +119,16 @@ begin
     ERR_Exit(error, false, '', []);
 end;
 
+//==============================================================================
+//
+// MS_Free
+//
+//==============================================================================
 procedure MS_Free(var ptr: Pointer; const size: integer);
 begin
   memfree(ptr, size);
 end;
+
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // MS_LittleUWORD
@@ -85,7 +136,8 @@ end;
 // Converts a host U_WORD (2 bytes) to little endian byte order.
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 function MS_LittleUWORD(const v: U_WORD): U_WORD;
 begin
   if not acs_BigEndianHost then
@@ -103,7 +155,8 @@ end;
 // Converts a host U_LONG (4 bytes) to little endian byte order.
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 function MS_LittleULONG(const v: U_LONG): U_LONG;
 begin
   if not acs_BigEndianHost then
@@ -120,7 +173,8 @@ end;
 // MS_LoadFile
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 function MS_LoadFile(const name: string; var buffer: pointer): integer;
 var
   handle: file;
@@ -148,7 +202,8 @@ end;
 // MS_SaveFile
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 function MS_SaveFile(const name: string; const buffer: pointer; const len: integer): boolean;
 var
   handle: file;
@@ -168,7 +223,8 @@ end;
 // MS_SuggestFileExt
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure MS_SuggestFileExt(var base: string; const extension: string);
 var
   i, len: integer;
@@ -195,7 +251,8 @@ end;
 // MS_StripFileExt
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure MS_StripFileExt(var name: string);
 var
   i: integer;
@@ -214,7 +271,8 @@ end;
 // MS_Message
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure MS_Message(const typ: integer; const fmt: string; const args: array of const);
 begin
   if typ = MSG_VERBOSE then

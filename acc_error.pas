@@ -103,8 +103,18 @@ const
   ERR_UNKNOWN_PRTYPE = 77;
   ERR_BAD_CHARACTER = 78;
 
+//==============================================================================
+//
+// ERR_Exit
+//
+//==============================================================================
 procedure ERR_Exit(error: integer; info: boolean; fmt: string; args: array of const);
 
+//==============================================================================
+//
+// ERR_RemoveErrorFile
+//
+//==============================================================================
 procedure ERR_RemoveErrorFile;
 
 implementation
@@ -123,7 +133,8 @@ const
 // ErrorFileName
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 function ErrorFileName: string;
 begin
   result := acs_SourceFileName;
@@ -220,7 +231,8 @@ var
 // ErrorText
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 function ErrorText(const error: integer): string;
 var
   i: integer;
@@ -238,13 +250,13 @@ begin
   result := '';
 end;
 
-
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // ERR_Exit
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure ERR_Exit(error: integer; info: boolean; fmt: string; args: array of const);
 var
   workString: string;
@@ -282,7 +294,8 @@ end;
 // ERR_RemoveErrorFile
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure ERR_RemoveErrorFile;
 begin
   fdelete(ErrorFileName);

@@ -157,22 +157,67 @@ var
   pc_BufferPtr: PByteArray;
   pc_ScriptCount: integer;
 
+//==============================================================================
+//
+// PC_OpenObject
+//
+//==============================================================================
 procedure PC_OpenObject(const name: string; const size: Integer; const flags: integer);
 
+//==============================================================================
+//
+// PC_CloseObject
+//
+//==============================================================================
 procedure PC_CloseObject;
 
+//==============================================================================
+//
+// PC_AddScript
+//
+//==============================================================================
 procedure PC_AddScript(const number: integer; const argCount: integer);
 
+//==============================================================================
+//
+// PC_AppendCmd
+//
+//==============================================================================
 procedure PC_AppendCmd(const command: integer);
 
+//==============================================================================
+//
+// PC_Append
+//
+//==============================================================================
 procedure PC_Append(const buffer: Pointer; const size: integer);
 
+//==============================================================================
+//
+// PC_AppendString
+//
+//==============================================================================
 procedure PC_AppendString(const str: string);
 
+//==============================================================================
+//
+// PC_AppendLong
+//
+//==============================================================================
 procedure PC_AppendLong(const v: U_LONG);
 
+//==============================================================================
+//
+// PC_WriteLong
+//
+//==============================================================================
 procedure PC_WriteLong(const v: U_LONG; const address: integer);
 
+//==============================================================================
+//
+// PC_SkipLong
+//
+//==============================================================================
 procedure PC_SkipLong;
 
 implementation
@@ -300,7 +345,8 @@ const
 // PC_OpenObject
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure PC_OpenObject(const name: string; const size: Integer; const flags: integer);
 begin
   if ObjectOpened then
@@ -323,7 +369,8 @@ end;
 // PC_CloseObject
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure PC_CloseObject;
 var
   i: integer;
@@ -353,7 +400,8 @@ end;
 // PC_Append functions
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure Append(const buffer: Pointer; const size: integer);
 begin
   if pc_Address + size > BufferSize then
@@ -364,12 +412,22 @@ begin
   pc_Address := pc_Address + size;
 end;
 
+//==============================================================================
+//
+// PC_Append
+//
+//==============================================================================
 procedure PC_Append(const buffer: Pointer; const size: integer);
 begin
   MS_Message(MSG_DEBUG, 'AD> %06d = (%d bytes)'#13#10, [pc_Address, size]);
   Append(buffer, size);
 end;
 
+//==============================================================================
+//
+// PC_AppendLong
+//
+//==============================================================================
 procedure PC_AppendLong(const v: U_LONG);
 var
   vl: U_LONG;
@@ -379,6 +437,11 @@ begin
   Append(@vl, SizeOf(U_LONG));
 end;
 
+//==============================================================================
+//
+// PC_AppendString
+//
+//==============================================================================
 procedure PC_AppendString(const str: string);
 var
   len, i: integer;
@@ -394,6 +457,11 @@ begin
   MS_Free(Pointer(pb), len);
 end;
 
+//==============================================================================
+//
+// PC_AppendCmd
+//
+//==============================================================================
 procedure PC_AppendCmd(const command: integer);
 var
   cl: integer;
@@ -403,12 +471,16 @@ begin
   Append(@cl, SizeOf(U_LONG));
 end;
 
+//==============================================================================
+// DoWrite
+//
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 //
 // PC_Write functions
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure DoWrite(const buffer: Pointer; const size, address: integer);
 begin
   if address + size > BufferSize then
@@ -417,12 +489,22 @@ begin
   memcpy(@pc_Buffer[address], buffer, size);
 end;
 
+//==============================================================================
+//
+// PC_Write
+//
+//==============================================================================
 procedure PC_Write(const buffer: Pointer; const size, address: integer);
 begin
   MS_Message(MSG_DEBUG, 'WD> %06d = (%d bytes)'#13#10, [address, size]);
   DoWrite(buffer, size, address);
 end;
 
+//==============================================================================
+//
+// PC_WriteLong
+//
+//==============================================================================
 procedure PC_WriteLong(const v: U_LONG; const address: integer);
 var
   vl: U_LONG;
@@ -432,6 +514,11 @@ begin
   DoWrite(@vl, SizeOf(U_LONG), address);
 end;
 
+//==============================================================================
+//
+// PC_WriteString
+//
+//==============================================================================
 procedure PC_WriteString(const str: string; const address: integer);
 var
   len, i: integer;
@@ -447,6 +534,11 @@ begin
   memfree(Pointer(pb), len);
 end;
 
+//==============================================================================
+//
+// PC_WriteCmd
+//
+//==============================================================================
 procedure PC_WriteCmd(const command: integer; const address: integer);
 var
   cl: integer;
@@ -461,7 +553,8 @@ end;
 // PC_Skip functions
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure Skip(const size: integer);
 begin
   if pc_Address + size > BufferSize then
@@ -471,12 +564,22 @@ begin
   pc_Address := pc_Address + size;
 end;
 
+//==============================================================================
+//
+// PC_Skip
+//
+//==============================================================================
 procedure PC_Skip(const size: integer);
 begin
   MS_Message(MSG_DEBUG, 'SD> %06d (skip %d bytes)'#13#10, [pc_Address, size]);
   Skip(size);
 end;
 
+//==============================================================================
+//
+// PC_SkipLong
+//
+//==============================================================================
 procedure PC_SkipLong;
 begin
   MS_Message(MSG_DEBUG, 'SL> %06d (skip long)'#13#10, [pc_Address]);
@@ -488,7 +591,8 @@ end;
 // PC_AddScript
 //
 // = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+//
+//==============================================================================
 procedure PC_AddScript(const number: integer; const argCount: integer);
 var
   script: PscriptInfo_t;
