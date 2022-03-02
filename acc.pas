@@ -88,6 +88,7 @@ procedure DisplayBanner;
 begin
   printf(#13#10'ACC Version ' + ACC_VERSION_TEXT + ' by Ben Gokey'#13#10);
   printf('Copyright (c) ' + ACC_COPYRIGHT_YEARS_TEXT + ' Raven Software, Corp.'#13#10);
+  printf('Pascal edition, Copyright (c) 2022 by Jim Valavanis.'#13#10);
 end;
 
 //==============================================================================
